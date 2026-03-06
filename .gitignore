@@ -19,8 +19,9 @@ ui/node_modules/
 ui/dist/
 ui/coverage/
 
-# Override global gitignore to track CLAUDE.md
+# Override global gitignore to track CLAUDE.md and skills
 !CLAUDE.md
+!.claude/skills/
 
 # Secrets
 *.pem
