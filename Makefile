@@ -109,7 +109,7 @@ integration-test: envtest
 .PHONY: integration-test
 
 # Envtest K8s version
-ENVTEST_K8S_VERSION ?= 1.31.0
+ENVTEST_K8S_VERSION ?= 1.35.0
 
 # envtest setup
 ENVTEST ?= $(LOCALBIN)/setup-envtest
