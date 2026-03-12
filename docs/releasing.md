@@ -158,12 +158,65 @@ helm install kubeopencode oci://quay.io/kubeopencode/helm-charts/kubeopencode \
   --dry-run
 ```
 
-### Step 8: Edit GitHub Release Notes
+### Step 8: Update GitHub Release Notes
 
-Navigate to the GitHub release page and enhance the auto-generated notes with:
-- A summary of key changes
-- Any breaking changes or migration notes
-- Links to relevant documentation
+Update the GitHub Release notes using the `gh` CLI. The release notes **must** follow this standard format:
+
+```bash
+gh release edit vNEW_VERSION --notes "$(cat <<'EOF'
+## Highlights
+
+<1-2 sentence summary of the most important changes in this release.>
+
+## Breaking Changes
+
+- **<Change title>** (#PR): <Description of what changed and migration guidance.>
+
+## New Features
+
+- **<Feature title>** (#PR): <Brief description.>
+
+## Bug Fixes
+
+- **<Fix title>** (#PR): <Brief description.>
+
+## Refactoring
+
+- <Description> (#PR)
+
+## Dependencies
+
+- <Description> (#PR)
+
+## Installation
+
+\```bash
+# Helm install
+helm install kubeopencode oci://quay.io/kubeopencode/helm-charts/kubeopencode \
+  --version NEW_VERSION \
+  --namespace kubeopencode-system \
+  --create-namespace
+
+# Or upgrade
+helm upgrade kubeopencode oci://quay.io/kubeopencode/helm-charts/kubeopencode \
+  --version NEW_VERSION \
+  --namespace kubeopencode-system
+\```
+
+## All Changes
+
+<Keep the auto-generated changelog from GitHub Actions as-is.>
+
+**Full Changelog**: https://github.com/kubeopencode/kubeopencode/compare/vPREV_VERSION...vNEW_VERSION
+EOF
+)"
+```
+
+**Format guidelines:**
+- Omit any section that has no entries (e.g., skip "Bug Fixes" if there are none)
+- "Breaking Changes" section is required whenever there are incompatible API changes
+- "All Changes" section preserves the auto-generated PR list from GitHub Actions
+- "Installation" section always includes both fresh install and upgrade commands
 
 ## Troubleshooting
 
