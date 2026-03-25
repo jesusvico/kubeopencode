@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted (Phase 1–2 implemented with simplified model)
 
 ## Context
 
@@ -625,6 +625,83 @@ For future multi-framework support (Phase 3), the following were evaluated:
 
 **Recommendation:** OpenCode for Phase 1–2 (strongest coding agent). Monitor LangGraph and Mastra
 for Phase 3 AG-UI integration.
+
+## Implementation Status & Decisions (2026-03-25)
+
+### Simplified HITL Model
+
+During implementation, the original 3-phase plan was refined into a **simpler, unified model**:
+
+| Scenario | Method | Permissions | Output |
+|----------|--------|-------------|--------|
+| **Task** (automated) | `opencode run --attach` | All auto-allowed (`OPENCODE_PERMISSION={"*":"allow"}`) | OpenCode native TUI output in pod logs |
+| **Interactive** (HITL) | `opencode attach` + port-forward | User approves in TUI | Full interactive TUI experience |
+
+**Key decision: Tasks are always non-interactive.** This simplifies the user mental model:
+- Tasks = fire-and-forget, all permissions auto-approved, no HITL overhead
+- HITL = users explicitly choose to attach to a server agent via TUI
+
+This avoids the complexity of the SSE broker, timeout manager, and JWT token system
+originally planned for Phase 2. The Web UI HITL infrastructure (SSE proxy, permission/question
+endpoints, HITLPanel component) was implemented but is secondary to the TUI-based workflow.
+
+### Bugs Fixed During Implementation
+
+1. **Credentials not mounted in Server mode** — `BuildServerDeployment` never called
+   `buildCredentials()`, so API keys (e.g., `OPENCODE_API_KEY`) were missing from server pods.
+
+2. **Missing HOME/SHELL env vars in Server mode** — SCC compatibility env vars were not set,
+   causing failures on OpenShift where containers run with random UIDs.
+
+3. **Agent contexts not loaded in Server mode** — Server-mode Deployments completely ignored
+   `Agent.contexts` (Text, ConfigMap, Git, Runtime). Context resolution was extracted into
+   shared `context_processor.go` functions used by both `TaskReconciler` and `AgentReconciler`.
+
+4. **`OPENCODE_PERMISSION` overriding custom permissions** — Both `pod_builder.go` and
+   `server_builder.go` unconditionally set `OPENCODE_PERMISSION={"*":"allow"}`, which would
+   override the config file's `permission: {edit: "ask"}` settings. Fixed with
+   `configHasPermission()` check (though this is now moot with the simplified model).
+
+5. **`opencode run --attach` auto-rejecting permissions** — OpenCode's `run` command
+   (`run.ts:544-556`) auto-rejects all `permission.asked` events since it's non-interactive.
+   This blocked the original HITL-via-Web-UI approach. Resolved by the simplified model
+   where Tasks always auto-allow all permissions.
+
+6. **Config file not written to server pod** — `server_builder.go` set `OPENCODE_CONFIG` env
+   var but never created the config file. Fixed by writing config inline via heredoc in the
+   server command, or via context-init container when contexts are present.
+
+### What Was Implemented
+
+**Backend:**
+- `context_processor.go` — Shared context resolution functions (extracted from TaskReconciler)
+- `server_builder.go` — Full context support (init containers for Git, ConfigMap, Text, Runtime)
+- `server_builder.go` — Credentials mounting (`buildCredentials`), HOME/SHELL env vars
+- `hitl_handler.go` — SSE proxy, permission/question/message/interrupt endpoints
+- `task_submit.go` — Utility subcommand for API-based task submission (kept as backup)
+- `agent_controller.go` — Context ConfigMap reconciliation for server-mode agents
+- `agent_handler.go` — Server port in API response
+
+**Frontend (Web UI):**
+- `HITLPanel.tsx` — SSE event streaming, permission/question UI, message input
+- `AgentDetailPage.tsx` — Quick Connect section with koc CLI, manual steps, shell alias tips
+- `TaskCreatePage.tsx` — Server-mode agent context limitation note
+- `TaskDetailPage.tsx` — HITLPanel integration for running tasks
+
+**CLI:**
+- `cmd/koc/` — Independent `koc` CLI binary
+- `koc agent attach` — One-click server agent attach (port-forward + opencode attach)
+- `koc session watch/attach` — Task event streaming and HITL interaction
+
+### Architecture Decision: task-submit vs opencode run --attach
+
+We implemented `kubeopencode task-submit` as a HITL-compatible task submitter that uses the
+OpenCode HTTP API directly (create session → submit prompt → poll status). Unlike
+`opencode run --attach`, it does NOT auto-reject permissions.
+
+However, with the simplified model (Tasks = always auto-allow), `opencode run --attach` works
+correctly since no `permission.asked` events are generated. The `task-submit` command is kept
+in the codebase as a utility for future HITL scenarios but is not used in the default flow.
 
 ## References
 

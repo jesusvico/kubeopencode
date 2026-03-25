@@ -101,6 +101,7 @@ export const mockAgents: Agent[] = [
       serviceName: 'restricted-agent',
       url: 'http://restricted-agent.production.svc.cluster.local:4096',
       readyReplicas: 1,
+      port: 4096,
     },
     conditions: [
       { type: 'ServerReady', status: 'True' },

@@ -24,6 +24,11 @@ vi.mock('../../components/YamlViewer', () => ({
   default: () => <div data-testid="yaml-viewer">YamlViewer</div>,
 }));
 
+// Mock HITLPanel to avoid EventSource complexity in tests
+vi.mock('../../components/HITLPanel', () => ({
+  default: () => <div data-testid="hitl-panel">HITLPanel</div>,
+}));
+
 function renderTaskDetailPage(namespace: string, name: string) {
   return renderWithProviders(
     <Routes>

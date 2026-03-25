@@ -1697,3 +1697,170 @@ func TestBuildPod_WithoutContextFile(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildPod_ServerMode_WithAttachCommand(t *testing.T) {
+	task := &kubeopenv1alpha1.Task{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-task",
+			Namespace: "default",
+			UID:       types.UID("test-uid"),
+		},
+	}
+	task.APIVersion = "kubeopencode.io/v1alpha1"
+	task.Kind = "Task"
+
+	cfg := agentConfig{
+		agentImage:         "test-opencode:v1.0.0",
+		executorImage:      "test-executor:v1.0.0",
+		workspaceDir:       "/workspace",
+		serviceAccountName: "test-sa",
+	}
+
+	serverURL := "http://test-agent.default.svc.cluster.local:4096"
+	pod := buildPod(task, "test-task-pod", cfg, nil, nil, nil, nil, defaultSystemConfig(), serverURL)
+
+	// Verify pod was created
+	if pod == nil {
+		t.Fatal("buildPod returned nil")
+	}
+
+	container := pod.Spec.Containers[0]
+
+	// Verify command uses --attach flag
+	if len(container.Command) != 3 {
+		t.Fatalf("len(Container.Command) = %d, want 3", len(container.Command))
+	}
+	if container.Command[0] != "sh" {
+		t.Errorf("Container.Command[0] = %q, want %q", container.Command[0], "sh")
+	}
+	if container.Command[1] != "-c" {
+		t.Errorf("Container.Command[1] = %q, want %q", container.Command[1], "-c")
+	}
+
+	// Verify the command includes --attach and serverURL
+	if !strings.Contains(container.Command[2], "--attach") {
+		t.Errorf("Command should contain --attach flag")
+	}
+	if !strings.Contains(container.Command[2], serverURL) {
+		t.Errorf("Command should contain server URL: %s", serverURL)
+	}
+	if !strings.Contains(container.Command[2], "/tools/opencode run") {
+		t.Errorf("Command should use /tools/opencode run")
+	}
+	if !strings.Contains(container.Command[2], "$(cat /workspace/task.md)") {
+		t.Errorf("Command should read task from /workspace/task.md")
+	}
+}
+
+func TestBuildPod_PodMode_WithoutAttachCommand(t *testing.T) {
+	task := &kubeopenv1alpha1.Task{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-task",
+			Namespace: "default",
+			UID:       types.UID("test-uid"),
+		},
+	}
+	task.APIVersion = "kubeopencode.io/v1alpha1"
+	task.Kind = "Task"
+
+	cfg := agentConfig{
+		agentImage:         "test-opencode:v1.0.0",
+		executorImage:      "test-executor:v1.0.0",
+		workspaceDir:       "/workspace",
+		serviceAccountName: "test-sa",
+	}
+
+	// Empty serverURL means Pod mode
+	pod := buildPod(task, "test-task-pod", cfg, nil, nil, nil, nil, defaultSystemConfig(), "")
+
+	// Verify pod was created
+	if pod == nil {
+		t.Fatal("buildPod returned nil")
+	}
+
+	container := pod.Spec.Containers[0]
+
+	// Verify command does NOT use --attach flag
+	if len(container.Command) != 3 {
+		t.Fatalf("len(Container.Command) = %d, want 3", len(container.Command))
+	}
+
+	// Verify the command does NOT include --attach
+	if strings.Contains(container.Command[2], "--attach") {
+		t.Errorf("Command should NOT contain --attach flag in Pod mode")
+	}
+	if !strings.Contains(container.Command[2], "/tools/opencode run") {
+		t.Errorf("Command should use /tools/opencode run")
+	}
+}
+
+func TestBuildPod_SkipsOPENCODE_PERMISSIONWhenConfigHasPermission(t *testing.T) {
+	task := &kubeopenv1alpha1.Task{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-task",
+			Namespace: "default",
+			UID:       types.UID("test-uid"),
+		},
+	}
+	task.APIVersion = "kubeopencode.io/v1alpha1"
+	task.Kind = "Task"
+
+	configWithPermission := `{"permission": "ask", "model": "gpt-4"}`
+	cfg := agentConfig{
+		agentImage:         "test-opencode:v1.0.0",
+		executorImage:      "test-executor:v1.0.0",
+		workspaceDir:       "/workspace",
+		serviceAccountName: "test-sa",
+		config:             &configWithPermission,
+	}
+
+	pod := buildPod(task, "test-task-pod", cfg, nil, nil, nil, nil, defaultSystemConfig(), "")
+
+	container := pod.Spec.Containers[0]
+
+	// Verify OPENCODE_PERMISSION env var is NOT set
+	for _, env := range container.Env {
+		if env.Name == OpenCodePermissionEnvVar {
+			t.Errorf("OPENCODE_PERMISSION should not be set when config has permission field")
+		}
+	}
+}
+
+func TestBuildPod_SetsOPENCODE_PERMISSIONWhenConfigHasNoPermission(t *testing.T) {
+	task := &kubeopenv1alpha1.Task{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-task",
+			Namespace: "default",
+			UID:       types.UID("test-uid"),
+		},
+	}
+	task.APIVersion = "kubeopencode.io/v1alpha1"
+	task.Kind = "Task"
+
+	configWithoutPermission := `{"model": "gpt-4"}`
+	cfg := agentConfig{
+		agentImage:         "test-opencode:v1.0.0",
+		executorImage:      "test-executor:v1.0.0",
+		workspaceDir:       "/workspace",
+		serviceAccountName: "test-sa",
+		config:             &configWithoutPermission,
+	}
+
+	pod := buildPod(task, "test-task-pod", cfg, nil, nil, nil, nil, defaultSystemConfig(), "")
+
+	container := pod.Spec.Containers[0]
+
+	// Verify OPENCODE_PERMISSION env var is set
+	var foundPermissionEnv bool
+	for _, env := range container.Env {
+		if env.Name == OpenCodePermissionEnvVar {
+			foundPermissionEnv = true
+			if env.Value != DefaultOpenCodePermission {
+				t.Errorf("OPENCODE_PERMISSION = %q, want %q", env.Value, DefaultOpenCodePermission)
+			}
+		}
+	}
+	if !foundPermissionEnv {
+		t.Errorf("OPENCODE_PERMISSION env var should be set when config has no permission field")
+	}
+}
