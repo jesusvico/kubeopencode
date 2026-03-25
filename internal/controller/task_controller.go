@@ -589,36 +589,22 @@ func (r *TaskReconciler) processAllContexts(ctx context.Context, task *kubeopenv
 	var gitMounts []gitMount
 
 	// 1. Resolve Agent.contexts (appears after description in task.md)
-	for i, item := range cfg.contexts {
-		rc, dm, gm, err := r.resolveContextItem(ctx, &item, task.Namespace, cfg.workspaceDir)
-		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("failed to resolve Agent context[%d]: %w", i, err)
-		}
-		switch {
-		case dm != nil:
-			dirMounts = append(dirMounts, *dm)
-		case gm != nil:
-			gitMounts = append(gitMounts, *gm)
-		case rc != nil:
-			resolved = append(resolved, *rc)
-		}
+	agentResolved, agentDirMounts, agentGitMounts, err := processContextItems(r.Client, ctx, cfg.contexts, task.Namespace, cfg.workspaceDir)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to resolve Agent contexts: %w", err)
 	}
+	resolved = append(resolved, agentResolved...)
+	dirMounts = append(dirMounts, agentDirMounts...)
+	gitMounts = append(gitMounts, agentGitMounts...)
 
 	// 2. Resolve Task.contexts (appears last in task.md)
-	for i, item := range task.Spec.Contexts {
-		rc, dm, gm, err := r.resolveContextItem(ctx, &item, task.Namespace, cfg.workspaceDir)
-		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("failed to resolve Task context[%d]: %w", i, err)
-		}
-		switch {
-		case dm != nil:
-			dirMounts = append(dirMounts, *dm)
-		case gm != nil:
-			gitMounts = append(gitMounts, *gm)
-		case rc != nil:
-			resolved = append(resolved, *rc)
-		}
+	taskResolved, taskDirMounts, taskGitMounts, err := processContextItems(r.Client, ctx, task.Spec.Contexts, task.Namespace, cfg.workspaceDir)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to resolve Task contexts: %w", err)
 	}
+	resolved = append(resolved, taskResolved...)
+	dirMounts = append(dirMounts, taskDirMounts...)
+	gitMounts = append(gitMounts, taskGitMounts...)
 
 	// 3. Handle Task.description (highest priority, becomes ${WORKSPACE_DIR}/task.md)
 	var taskDescription string
@@ -753,48 +739,7 @@ func validateMountPathConflicts(fileMounts []fileMount, dirMounts []dirMount, gi
 
 // resolveContextItem resolves a ContextItem to its content, directory mount, or git mount.
 func (r *TaskReconciler) resolveContextItem(ctx context.Context, item *kubeopenv1alpha1.ContextItem, defaultNS, workspaceDir string) (*resolvedContext, *dirMount, *gitMount, error) {
-	// Validate: Git context requires mountPath to be specified
-	// Without mountPath, multiple Git contexts would conflict with the default "git-context" path.
-	if item.Type == kubeopenv1alpha1.ContextTypeGit && item.MountPath == "" {
-		return nil, nil, nil, fmt.Errorf("git context requires mountPath to be specified")
-	}
-
-	// Use a generated name for contexts
-	// For Runtime context, use "runtime" as a more descriptive name
-	name := "context"
-	if item.Type == kubeopenv1alpha1.ContextTypeRuntime {
-		name = "runtime"
-	}
-
-	// Resolve mountPath: relative paths are prefixed with workspaceDir
-	// Note: For Runtime context, mountPath is ignored - content is always appended to task.md
-	resolvedPath := resolveMountPath(item.MountPath, workspaceDir)
-	if item.Type == kubeopenv1alpha1.ContextTypeRuntime {
-		resolvedPath = "" // Force empty to ensure content is appended to task.md
-	}
-
-	// Resolve content based on context type
-	content, dm, gm, err := r.resolveContextContent(ctx, defaultNS, name, workspaceDir, item, resolvedPath)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	if dm != nil {
-		return nil, dm, nil, nil
-	}
-
-	if gm != nil {
-		return nil, nil, gm, nil
-	}
-
-	return &resolvedContext{
-		name:      name,
-		namespace: defaultNS,
-		ctxType:   string(item.Type),
-		content:   content,
-		mountPath: resolvedPath,
-		fileMode:  item.FileMode,
-	}, nil, nil, nil
+	return resolveContextItemFromReader(r.Client, ctx, item, defaultNS, workspaceDir)
 }
 
 // resolveMountPath converts relative paths to absolute paths based on workspaceDir.
@@ -812,133 +757,18 @@ func resolveMountPath(mountPath, workspaceDir string) string {
 }
 
 // resolveContextContent resolves content from a ContextItem.
-// Returns: content string, dirMount pointer, gitMount pointer, error
 func (r *TaskReconciler) resolveContextContent(ctx context.Context, namespace, name, workspaceDir string, item *kubeopenv1alpha1.ContextItem, mountPath string) (string, *dirMount, *gitMount, error) {
-	switch item.Type {
-	case kubeopenv1alpha1.ContextTypeText:
-		if item.Text == "" {
-			return "", nil, nil, nil
-		}
-		return item.Text, nil, nil, nil
-
-	case kubeopenv1alpha1.ContextTypeConfigMap:
-		if item.ConfigMap == nil {
-			return "", nil, nil, nil
-		}
-		cm := item.ConfigMap
-
-		// If Key is specified, return the content
-		if cm.Key != "" {
-			content, err := r.getConfigMapKey(ctx, namespace, cm.Name, cm.Key, cm.Optional)
-			return content, nil, nil, err
-		}
-
-		// If Key is not specified but mountPath is, return a directory mount
-		if mountPath != "" {
-			optional := false
-			if cm.Optional != nil {
-				optional = *cm.Optional
-			}
-			return "", &dirMount{
-				dirPath:       mountPath,
-				configMapName: cm.Name,
-				optional:      optional,
-			}, nil, nil
-		}
-
-		// If Key is not specified and mountPath is empty, aggregate all keys to task.md
-		content, err := r.getConfigMapAllKeys(ctx, namespace, cm.Name, cm.Optional)
-		return content, nil, nil, err
-
-	case kubeopenv1alpha1.ContextTypeGit:
-		if item.Git == nil {
-			return "", nil, nil, nil
-		}
-		git := item.Git
-
-		// Determine mount path: use specified path or default to ${WORKSPACE_DIR}/git-<context-name>/
-		resolvedMountPath := defaultString(mountPath, workspaceDir+"/git-"+name)
-
-		// Determine clone depth: default to 1 (shallow clone)
-		depth := DefaultGitDepth
-		if git.Depth != nil && *git.Depth > 0 {
-			depth = *git.Depth
-		}
-
-		// Determine ref: default to HEAD
-		ref := defaultString(git.Ref, DefaultGitRef)
-
-		// Get secret name if specified
-		secretName := ""
-		if git.SecretRef != nil {
-			secretName = git.SecretRef.Name
-		}
-
-		return "", nil, &gitMount{
-			contextName:       name,
-			repository:        git.Repository,
-			ref:               ref,
-			repoPath:          git.Path,
-			mountPath:         resolvedMountPath,
-			depth:             depth,
-			secretName:        secretName,
-			recurseSubmodules: git.RecurseSubmodules,
-		}, nil
-
-	case kubeopenv1alpha1.ContextTypeRuntime:
-		// Runtime context returns the hardcoded system prompt
-		// MountPath is ignored for Runtime context - content is always appended to task.md
-		return RuntimeSystemPrompt, nil, nil, nil
-
-	default:
-		return "", nil, nil, fmt.Errorf("unknown context type: %s", item.Type)
-	}
+	return resolveContextContentFromReader(r.Client, ctx, namespace, name, workspaceDir, item, mountPath)
 }
 
-// getConfigMapKey retrieves a specific key from a ConfigMap
+// getConfigMapKey retrieves a specific key from a ConfigMap.
 func (r *TaskReconciler) getConfigMapKey(ctx context.Context, namespace, name, key string, optional *bool) (string, error) {
-	cm := &corev1.ConfigMap{}
-	if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, cm); err != nil {
-		if optional != nil && *optional {
-			return "", nil
-		}
-		return "", err
-	}
-	if content, ok := cm.Data[key]; ok {
-		return content, nil
-	}
-	if optional != nil && *optional {
-		return "", nil
-	}
-	return "", fmt.Errorf("key %s not found in ConfigMap %s", key, name)
+	return getConfigMapKeyFromReader(r.Client, ctx, namespace, name, key, optional)
 }
 
-// getConfigMapAllKeys retrieves all keys from a ConfigMap and formats them for aggregation
+// getConfigMapAllKeys retrieves all keys from a ConfigMap and formats them for aggregation.
 func (r *TaskReconciler) getConfigMapAllKeys(ctx context.Context, namespace, name string, optional *bool) (string, error) {
-	cm := &corev1.ConfigMap{}
-	if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, cm); err != nil {
-		if optional != nil && *optional {
-			return "", nil
-		}
-		return "", err
-	}
-
-	if len(cm.Data) == 0 {
-		return "", nil
-	}
-
-	// Sort keys for deterministic output
-	keys := make([]string, 0, len(cm.Data))
-	for k := range cm.Data {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	var parts []string
-	for _, key := range keys {
-		parts = append(parts, fmt.Sprintf("<file name=%q>\n%s\n</file>", key, cm.Data[key]))
-	}
-	return strings.Join(parts, "\n"), nil
+	return getConfigMapAllKeysFromReader(r.Client, ctx, namespace, name, optional)
 }
 
 // checkAgentCapacity checks if the agent has capacity for a new task.

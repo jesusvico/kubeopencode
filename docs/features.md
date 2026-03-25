@@ -244,6 +244,138 @@ spec:
           effect: "NoSchedule"
 ```
 
+## Human-in-the-Loop (HITL)
+
+KubeOpenCode supports Human-in-the-Loop interaction for Server-mode Agents, allowing humans to
+approve tool executions, answer agent questions, send follow-up messages, and interrupt agent
+execution in real-time.
+
+### Prerequisites
+
+- Agent must be configured in **Server mode** (`serverConfig` is set)
+- Agent's OpenCode server must be running (`Agent.status.serverStatus.readyReplicas > 0`)
+
+### Direct Access via OpenCode TUI
+
+The simplest way to interact with a running agent is using OpenCode's built-in TUI:
+
+```bash
+# Port-forward to the Agent's OpenCode server
+kubectl port-forward svc/<agent-name> -n <namespace> 4096:4096
+
+# Connect with OpenCode TUI
+opencode --attach http://localhost:4096
+```
+
+Once connected, you get the full OpenCode TUI experience:
+- **Permission prompts**: When the agent wants to edit a file or run a command,
+  you see `[Allow Once] [Always] [Reject]` options
+- **Question forms**: When the agent needs input, you see structured options
+  with keyboard navigation
+- **Follow-up messages**: Type in the input box to send additional instructions
+- **Interrupt**: Press `Ctrl+C` to gracefully interrupt the current execution
+
+### API-based Interaction
+
+KubeOpenCode also provides REST API endpoints for programmatic HITL interaction.
+These endpoints proxy requests to the Agent's OpenCode server.
+
+#### Stream Events (SSE)
+
+```
+GET /api/v1/namespaces/{namespace}/tasks/{name}/events
+```
+
+Returns a Server-Sent Events stream of all OpenCode events for the task's agent session.
+Key event types:
+
+| Event Type | Description |
+|-----------|-------------|
+| `permission.asked` | Agent needs approval to execute a tool |
+| `question.asked` | Agent is asking a structured question |
+| `session.status` | Session state changed (busy, idle) |
+| `message.part.delta` | Streaming text content from agent |
+| `message.updated` | Complete message with all parts |
+
+#### Reply to Permission
+
+```
+POST /api/v1/namespaces/{namespace}/tasks/{name}/permission/{id}
+Content-Type: application/json
+
+{
+  "reply": "once"  // "once", "always", or "reject"
+}
+```
+
+#### Reply to Question
+
+```
+POST /api/v1/namespaces/{namespace}/tasks/{name}/question/{id}
+Content-Type: application/json
+
+{
+  "answers": [["PostgreSQL"]]  // Array of selected options per question
+}
+```
+
+#### Reject Question
+
+```
+POST /api/v1/namespaces/{namespace}/tasks/{name}/question/{id}/reject
+```
+
+#### Send Message
+
+```
+POST /api/v1/namespaces/{namespace}/tasks/{name}/message
+Content-Type: application/json
+
+{
+  "sessionId": "session-abc",
+  "message": "Also fix the tests please"
+}
+```
+
+Note: The agent can only process one message at a time. If the agent is busy,
+you must interrupt first before sending a new message.
+
+#### Interrupt
+
+```
+POST /api/v1/namespaces/{namespace}/tasks/{name}/interrupt
+Content-Type: application/json
+
+{
+  "sessionId": "session-abc"
+}
+```
+
+### Detecting HITL State
+
+When the agent is waiting for human input, the Task's status conditions include
+a `WaitingInput` condition:
+
+```yaml
+status:
+  phase: Running
+  conditions:
+    - type: WaitingInput
+      status: "True"
+      reason: PermissionRequired
+      message: "Agent requests permission to edit /src/main.go"
+```
+
+You can monitor this with kubectl:
+
+```bash
+# Watch for tasks waiting for input
+kubectl get tasks -w
+
+# Get detailed condition info
+kubectl get task <name> -o jsonpath='{.status.conditions}'
+```
+
 ## Next Steps
 
 - [Getting Started](getting-started.md) - Installation and basic usage

@@ -580,12 +580,14 @@ func buildPod(task *kubeopenv1alpha1.Task, podName string, cfg agentConfig, cont
 	// This is required for non-interactive/automated execution in Kubernetes.
 	// Without this, OpenCode would prompt for permission approval which would
 	// block task execution in a Pod environment.
-	// Users can still configure restrictive permissions via Agent.spec.config's permission field,
-	// which takes precedence over this environment variable.
-	envVars = append(envVars, corev1.EnvVar{
-		Name:  OpenCodePermissionEnvVar,
-		Value: DefaultOpenCodePermission,
-	})
+	// If the Agent config contains a "permission" field, skip the default to let
+	// the user's custom permission config take effect (e.g., for HITL scenarios).
+	if !configHasPermission(cfg.config) {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  OpenCodePermissionEnvVar,
+			Value: DefaultOpenCodePermission,
+		})
+	}
 
 	// Check if context file is being mounted and inject OPENCODE_CONFIG_CONTENT.
 	// This allows OpenCode to load KubeOpenCode's context file without conflicting
@@ -818,8 +820,12 @@ func buildPod(task *kubeopenv1alpha1.Task, podName string, cfg agentConfig, cont
 	agentCommand := cfg.command
 	if len(agentCommand) == 0 {
 		if serverURL != "" {
-			// Server mode: use --attach flag to connect to existing OpenCode server
-			// This allows Tasks to reuse a persistent server for faster execution
+			// Server mode: use --attach flag to connect to existing OpenCode server.
+			// Tasks are non-interactive — all permissions are auto-allowed via
+			// OPENCODE_PERMISSION env var on the server, so no permission.asked
+			// events are generated. This gives natural OpenCode TUI-style output
+			// in pod logs.
+			// For interactive HITL sessions, users use `opencode attach` directly.
 			agentCommand = []string{
 				"sh", "-c",
 				fmt.Sprintf(`/tools/opencode run --attach %s "$(cat %s/task.md)"`, serverURL, cfg.workspaceDir),
@@ -902,4 +908,20 @@ func buildPod(task *kubeopenv1alpha1.Task, podName string, cfg agentConfig, cont
 	}
 
 	return pod
+}
+
+// configHasPermission checks if the Agent's OpenCode config JSON contains
+// a "permission" field. When present, the user has explicitly configured
+// permissions (e.g., for HITL), so we should not override with the default
+// all-allow environment variable.
+func configHasPermission(config *string) bool {
+	if config == nil || *config == "" {
+		return false
+	}
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(*config), &parsed); err != nil {
+		return false
+	}
+	_, ok := parsed["permission"]
+	return ok
 }

@@ -5,6 +5,8 @@ package controller
 import (
 	"fmt"
 	"maps"
+	"path/filepath"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -58,7 +60,9 @@ func getServerLabels(agentName string) map[string]string {
 
 // BuildServerDeployment creates a Deployment for a Server-mode Agent.
 // The Deployment runs OpenCode in serve mode with a single replica.
-func BuildServerDeployment(agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, sysCfg systemConfig) *appsv1.Deployment {
+// Context parameters (contextConfigMap, fileMounts, dirMounts, gitMounts) enable
+// Agent-level contexts to be loaded via init containers, matching Pod mode behavior.
+func BuildServerDeployment(agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, sysCfg systemConfig, contextConfigMap *corev1.ConfigMap, ctxFileMounts []fileMount, ctxDirMounts []dirMount, ctxGitMounts []gitMount) *appsv1.Deployment {
 	serverConfig := agent.Spec.ServerConfig
 	if serverConfig == nil {
 		return nil
@@ -75,10 +79,23 @@ func BuildServerDeployment(agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, 
 	}
 
 	// Build environment variables
+	// HOME and SHELL are set for SCC (Security Context Constraints) compatibility.
+	// In SCC environments, containers run with random UIDs that have no /etc/passwd entry,
+	// causing HOME=/ (not writable) and SHELL=/sbin/nologin.
 	envVars := []corev1.EnvVar{
+		{Name: "HOME", Value: DefaultHomeDir},
+		{Name: "SHELL", Value: DefaultShell},
 		{Name: "WORKSPACE_DIR", Value: agentCfg.workspaceDir},
-		// OpenCode permission settings for automated execution
-		{Name: OpenCodePermissionEnvVar, Value: DefaultOpenCodePermission},
+	}
+
+	// Set OPENCODE_PERMISSION only if the Agent config does not include custom permissions.
+	// When the config has a "permission" field, the user has explicitly configured
+	// permission behavior (e.g., "ask" mode for HITL), so we must not override it.
+	if !configHasPermission(agentCfg.config) {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  OpenCodePermissionEnvVar,
+			Value: DefaultOpenCodePermission,
+		})
 	}
 
 	// Add OpenCode config if provided
@@ -111,10 +128,195 @@ func BuildServerDeployment(agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, 
 		},
 	}
 
-	// Build command for OpenCode serve mode
-	command := []string{
-		"sh", "-c",
-		fmt.Sprintf("/tools/opencode serve --port %d --hostname 0.0.0.0", port),
+	// Add credentials (secrets as env vars or file mounts)
+	credVols, credMounts, credEnvs, credEnvFroms := buildCredentials(agentCfg.credentials)
+	volumes = append(volumes, credVols...)
+	volumeMounts = append(volumeMounts, credMounts...)
+	envVars = append(envVars, credEnvs...)
+
+	// Track init containers (opencode-init is always first)
+	var initContainers []corev1.Container
+	initContainers = append(initContainers, buildOpenCodeInitContainer(agentCfg.agentImage))
+
+	// Add context init containers and volumes (matching Pod mode behavior)
+	var contextInitMounts []corev1.VolumeMount
+
+	// Add context ConfigMap volume if it exists
+	if contextConfigMap != nil {
+		volumes = append(volumes, corev1.Volume{
+			Name: "context-files",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: contextConfigMap.Name,
+					},
+				},
+			},
+		})
+		contextInitMounts = append(contextInitMounts, corev1.VolumeMount{
+			Name:      "context-files",
+			MountPath: "/configmap-files",
+			ReadOnly:  true,
+		})
+	}
+
+	// Add directory mounts (ConfigMapRef - entire ConfigMap as a directory)
+	for i, dm := range ctxDirMounts {
+		volumeName := fmt.Sprintf("dir-mount-%d", i)
+		volumes = append(volumes, corev1.Volume{
+			Name: volumeName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: dm.configMapName,
+					},
+					Optional: &dm.optional,
+				},
+			},
+		})
+		contextInitMounts = append(contextInitMounts, corev1.VolumeMount{
+			Name:      volumeName,
+			MountPath: fmt.Sprintf("/configmap-dir-%d", i),
+			ReadOnly:  true,
+		})
+	}
+
+	// Add context-init container if there are any files or directories to copy
+	if len(ctxFileMounts) > 0 || len(ctxDirMounts) > 0 {
+		contextInit := buildContextInitContainer(agentCfg.workspaceDir, ctxFileMounts, ctxDirMounts, sysCfg)
+		contextInit.VolumeMounts = append(contextInit.VolumeMounts, contextInitMounts...)
+		contextInit.VolumeMounts = append(contextInit.VolumeMounts, corev1.VolumeMount{
+			Name:      WorkspaceVolumeName,
+			MountPath: agentCfg.workspaceDir,
+		})
+
+		// Mount /tools volume so context-init can write config file
+		if agentCfg.config != nil && *agentCfg.config != "" {
+			contextInit.VolumeMounts = append(contextInit.VolumeMounts, corev1.VolumeMount{
+				Name:      ToolsVolumeName,
+				MountPath: ToolsMountPath,
+			})
+		}
+
+		// Handle files outside workspace (same logic as Pod mode)
+		externalDirs := make(map[string]bool)
+		for _, fm := range ctxFileMounts {
+			if !isUnderPath(fm.filePath, agentCfg.workspaceDir) {
+				parentDir := getParentDir(fm.filePath)
+				if parentDir == ToolsMountPath {
+					continue
+				}
+				externalDirs[parentDir] = true
+			}
+		}
+		for dir := range externalDirs {
+			volumeName := sanitizeVolumeName(dir)
+			volumes = append(volumes, corev1.Volume{
+				Name: volumeName,
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+			})
+			contextInit.VolumeMounts = append(contextInit.VolumeMounts, corev1.VolumeMount{
+				Name:      volumeName,
+				MountPath: dir,
+			})
+			volumeMounts = append(volumeMounts, corev1.VolumeMount{
+				Name:      volumeName,
+				MountPath: dir,
+			})
+		}
+
+		initContainers = append(initContainers, contextInit)
+	}
+
+	// Add Git context mounts (using git-init containers)
+	for i, gm := range ctxGitMounts {
+		volumeName := fmt.Sprintf("git-context-%d", i)
+		volumes = append(volumes, corev1.Volume{
+			Name: volumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		})
+
+		isWorkspaceRoot := filepath.Clean(gm.mountPath) == filepath.Clean(agentCfg.workspaceDir)
+		gitInitContainer := buildGitInitContainer(gm, volumeName, i, sysCfg)
+
+		if isWorkspaceRoot {
+			gitInitContainer.Env = append(gitInitContainer.Env,
+				corev1.EnvVar{Name: "GIT_WORKSPACE_DIR", Value: agentCfg.workspaceDir},
+			)
+			if gm.repoPath != "" {
+				gitInitContainer.Env = append(gitInitContainer.Env,
+					corev1.EnvVar{Name: "GIT_REPO_SUBPATH", Value: gm.repoPath},
+				)
+			}
+			gitInitContainer.VolumeMounts = append(gitInitContainer.VolumeMounts,
+				corev1.VolumeMount{
+					Name:      WorkspaceVolumeName,
+					MountPath: agentCfg.workspaceDir,
+				},
+			)
+		}
+
+		initContainers = append(initContainers, gitInitContainer)
+
+		if !isWorkspaceRoot {
+			subPath := DefaultGitLink
+			if gm.repoPath != "" {
+				subPath = DefaultGitLink + "/" + strings.TrimPrefix(gm.repoPath, "/")
+			}
+			volumeMounts = append(volumeMounts, corev1.VolumeMount{
+				Name:      volumeName,
+				MountPath: gm.mountPath,
+				SubPath:   subPath,
+			})
+		}
+	}
+
+	// Add GIT_CONFIG_GLOBAL if we have Git mounts
+	if len(ctxGitMounts) > 0 {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "GIT_CONFIG_GLOBAL",
+			Value: DefaultGitRoot + "/.gitconfig",
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "git-context-0",
+			MountPath: DefaultGitRoot + "/.gitconfig",
+			SubPath:   ".gitconfig",
+		})
+	}
+
+	// Check if context file is being mounted and inject OPENCODE_CONFIG_CONTENT
+	contextFilePath := agentCfg.workspaceDir + "/" + ContextFileRelPath
+	for _, fm := range ctxFileMounts {
+		if fm.filePath == contextFilePath {
+			envVars = append(envVars, corev1.EnvVar{
+				Name:  OpenCodeConfigContentEnvVar,
+				Value: `{"instructions":["` + ContextFileRelPath + `"]}`,
+			})
+			break
+		}
+	}
+
+	// Build the serve command.
+	// When context-init handles config file writing, we don't need inline heredoc.
+	hasContextInit := len(ctxFileMounts) > 0 || len(ctxDirMounts) > 0
+	var command []string
+	if agentCfg.config != nil && *agentCfg.config != "" && !hasContextInit {
+		// No context-init container — write config inline in the command
+		command = []string{
+			"sh", "-c",
+			fmt.Sprintf("cat > %s << 'KOCEOF'\n%s\nKOCEOF\n/tools/opencode serve --port %d --hostname 0.0.0.0",
+				OpenCodeConfigPath, *agentCfg.config, port),
+		}
+	} else {
+		// Config is written by context-init, or no config at all
+		command = []string{
+			"sh", "-c",
+			fmt.Sprintf("/tools/opencode serve --port %d --hostname 0.0.0.0", port),
+		}
 	}
 
 	// Build the main container
@@ -124,6 +326,7 @@ func BuildServerDeployment(agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, 
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Command:         command,
 		Env:             envVars,
+		EnvFrom:         credEnvFroms,
 		VolumeMounts:    volumeMounts,
 		Ports: []corev1.ContainerPort{
 			{
@@ -132,7 +335,6 @@ func BuildServerDeployment(agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, 
 				Protocol:      corev1.ProtocolTCP,
 			},
 		},
-		// Liveness probe: TCP check on the server port
 		LivenessProbe: &corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
 				TCPSocket: &corev1.TCPSocketAction{
@@ -144,7 +346,6 @@ func BuildServerDeployment(agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, 
 			TimeoutSeconds:      5,
 			FailureThreshold:    3,
 		},
-		// Readiness probe: HTTP check on /session/status
 		ReadinessProbe: &corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
 				HTTPGet: &corev1.HTTPGetAction{
@@ -165,17 +366,15 @@ func BuildServerDeployment(agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, 
 		container.Resources = *agentCfg.podSpec.Resources
 	}
 
-	// Build init container to copy OpenCode binary
-	initContainer := buildOpenCodeInitContainer(agentCfg.agentImage)
-
 	// Build pod template spec
 	podSpec := corev1.PodSpec{
 		ServiceAccountName: agentCfg.serviceAccountName,
-		InitContainers:     []corev1.Container{initContainer},
+		InitContainers:     initContainers,
 		Containers:         []corev1.Container{container},
 		Volumes:            volumes,
 		RestartPolicy:      corev1.RestartPolicyAlways,
 	}
+
 
 	// Apply scheduling configuration if provided
 	if agentCfg.podSpec != nil && agentCfg.podSpec.Scheduling != nil {

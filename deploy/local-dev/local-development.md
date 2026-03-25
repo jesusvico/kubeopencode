@@ -42,11 +42,19 @@ Build all required images:
 # Build the controller image
 make docker-build
 
-# Build the agent images (two-container pattern)
-make agent-build AGENT=opencode    # OpenCode init container
-make agent-build AGENT=devbox      # Executor container
-make agent-build AGENT=attach      # Lightweight attach image (Server mode)
+# Build all agent images (opencode, devbox, attach, etc.)
+make agent-build-all
 ```
+
+Or build individual agent images as needed:
+
+```bash
+make agent-build AGENT=opencode    # OpenCode init container (copies /opencode binary)
+make agent-build AGENT=devbox      # Executor container (development environment)
+make agent-build AGENT=attach      # Attach image (required for Server mode)
+```
+
+> **Note:** The `attach` image is required for **Server mode** Agents. If you only use Pod mode, you can skip it. However, `make agent-build-all` is recommended to avoid missing images.
 
 **Note:** The unified kubeopencode image provides both controller and infrastructure utilities:
 - `kubeopencode controller`: Kubernetes controller
@@ -58,11 +66,16 @@ make agent-build AGENT=attach      # Lightweight attach image (Server mode)
 Load images into the Kind cluster (required because Kind cannot pull from local Docker):
 
 ```bash
+# Load controller image
 kind load docker-image quay.io/kubeopencode/kubeopencode:latest --name kubeopencode
-kind load docker-image quay.io/kubeopencode/kubeopencode-agent-opencode:latest --name kubeopencode
-kind load docker-image quay.io/kubeopencode/kubeopencode-agent-devbox:latest --name kubeopencode
-kind load docker-image quay.io/kubeopencode/kubeopencode-agent-attach:latest --name kubeopencode
+
+# Load all agent images
+for img in opencode devbox attach; do
+  kind load docker-image quay.io/kubeopencode/kubeopencode-agent-${img}:latest --name kubeopencode
+done
 ```
+
+> **Important:** All three agent images must be loaded. Missing the `attach` image will cause Server mode Tasks to fail with `ErrImagePull`.
 
 ### 4. Deploy with Helm
 
@@ -459,8 +472,13 @@ The script requires `jq` and converts the JSON stream into human-readable output
 
 If you see `ErrImagePull` or `ImagePullBackOff`, ensure:
 
-1. Images are loaded into Kind: `docker exec kind-control-plane crictl images | grep kubeopencode`
+1. Images are loaded into Kind: `docker exec kubeopencode-control-plane crictl images | grep kubeopencode`
 2. `imagePullPolicy` is set to `Never` in Helm values
+3. **Server mode:** The `attach` image (`kubeopencode-agent-attach`) must be loaded. This image is used by Server mode Task Pods to connect to the OpenCode server. Build and load it with:
+   ```bash
+   make agent-build AGENT=attach
+   kind load docker-image quay.io/kubeopencode/kubeopencode-agent-attach:latest --name kubeopencode
+   ```
 
 ### Controller Not Starting
 

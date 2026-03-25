@@ -35,6 +35,8 @@ const (
 	ConditionTypeQueued = "Queued"
 	// ConditionTypeStopped is the condition type for Task stop
 	ConditionTypeStopped = "Stopped"
+	// ConditionTypeWaitingInput is the condition type for HITL waiting input
+	ConditionTypeWaitingInput = "WaitingInput"
 
 	// ReasonAgentError is the reason for Agent errors
 	ReasonAgentError = "AgentError"
@@ -54,6 +56,10 @@ const (
 	ReasonPodCreationError = "PodCreationError"
 	// ReasonConfigMapCreationError is the reason for ConfigMap creation failures
 	ReasonConfigMapCreationError = "ConfigMapCreationError"
+	// ReasonPermissionRequired is the reason when agent needs permission approval
+	ReasonPermissionRequired = "PermissionRequired"
+	// ReasonQuestionAsked is the reason when agent asks a question
+	ReasonQuestionAsked = "QuestionAsked"
 )
 
 // +genclient

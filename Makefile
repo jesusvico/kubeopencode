@@ -91,6 +91,11 @@ build:
 	go build -ldflags '$(GO_LD_FLAGS)' -o bin/kubeopencode ./cmd/kubeopencode
 .PHONY: build
 
+# Build koc CLI binary
+build-koc:
+	go build -ldflags '$(GO_LD_FLAGS)' -o bin/koc ./cmd/koc
+.PHONY: build-koc
+
 # Test runs unit tests only.
 # Integration tests are excluded via build tags (//go:build integration).
 # This follows the Kubernetes ecosystem convention (kubebuilder, controller-runtime)

@@ -11,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kubeopenv1alpha1 "github.com/kubeopencode/kubeopencode/api/v1alpha1"
+	"github.com/kubeopencode/kubeopencode/internal/controller"
 	"github.com/kubeopencode/kubeopencode/internal/server/types"
 )
 
@@ -225,6 +226,7 @@ func agentToResponse(agent *kubeopenv1alpha1.Agent) types.AgentResponse {
 			ServiceName:    agent.Status.ServerStatus.ServiceName,
 			URL:            agent.Status.ServerStatus.URL,
 			ReadyReplicas:  agent.Status.ServerStatus.ReadyReplicas,
+			Port:           controller.GetServerPort(agent),
 		}
 	}
 

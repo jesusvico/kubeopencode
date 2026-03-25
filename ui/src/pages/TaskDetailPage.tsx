@@ -5,6 +5,7 @@ import api from '../api/client';
 import StatusBadge from '../components/StatusBadge';
 import Labels from '../components/Labels';
 import LogViewer from '../components/LogViewer';
+import HITLPanel from '../components/HITLPanel';
 import TimeAgo from '../components/TimeAgo';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Breadcrumbs from '../components/Breadcrumbs';
@@ -224,6 +225,16 @@ function TaskDetailPage() {
         queryKey={['task', namespace!, name!]}
         fetchYaml={() => api.getTaskYaml(namespace!, name!)}
       />
+
+      {task.phase === 'Running' && (
+        <div className="mt-6">
+          <HITLPanel
+            namespace={namespace!}
+            taskName={name!}
+            isRunning={task.phase === 'Running'}
+          />
+        </div>
+      )}
 
       {(task.phase === 'Running' || task.phase === 'Completed' || task.phase === 'Failed') && (
         <div className="mt-6">

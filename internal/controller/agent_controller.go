@@ -44,6 +44,7 @@ type AgentReconciler struct {
 // +kubebuilder:rbac:groups=kubeopencode.io,resources=agents/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile handles Agent reconciliation.
 // For Server-mode Agents, it ensures the Deployment and Service exist and are up-to-date.
@@ -80,8 +81,21 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		systemImagePullPolicy: corev1.PullIfNotPresent,
 	}
 
-	// Reconcile the Deployment
-	if err := r.reconcileDeployment(ctx, &agent, agentCfg, sysCfg); err != nil {
+	// Process Agent contexts (Text, ConfigMap, Git, Runtime)
+	contextConfigMap, fileMounts, dirMounts, gitMounts, err := r.processAgentContexts(ctx, &agent, agentCfg)
+	if err != nil {
+		logger.Error(err, "Failed to process Agent contexts")
+		return ctrl.Result{}, err
+	}
+
+	// Reconcile context ConfigMap if there are any contexts to store
+	if err := r.reconcileContextConfigMap(ctx, &agent, contextConfigMap); err != nil {
+		logger.Error(err, "Failed to reconcile context ConfigMap")
+		return ctrl.Result{}, err
+	}
+
+	// Reconcile the Deployment (with context support)
+	if err := r.reconcileDeployment(ctx, &agent, agentCfg, sysCfg, contextConfigMap, fileMounts, dirMounts, gitMounts); err != nil {
 		logger.Error(err, "Failed to reconcile Deployment")
 		return ctrl.Result{}, err
 	}
@@ -103,10 +117,10 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 }
 
 // reconcileDeployment ensures the Deployment exists and is up-to-date.
-func (r *AgentReconciler) reconcileDeployment(ctx context.Context, agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, sysCfg systemConfig) error {
+func (r *AgentReconciler) reconcileDeployment(ctx context.Context, agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, sysCfg systemConfig, contextConfigMap *corev1.ConfigMap, fileMounts []fileMount, dirMounts []dirMount, gitMounts []gitMount) error {
 	logger := log.FromContext(ctx)
 
-	desired := BuildServerDeployment(agent, agentCfg, sysCfg)
+	desired := BuildServerDeployment(agent, agentCfg, sysCfg, contextConfigMap, fileMounts, dirMounts, gitMounts)
 	if desired == nil {
 		return nil
 	}
@@ -230,6 +244,89 @@ func (r *AgentReconciler) updateAgentStatus(ctx context.Context, agent *kubeopen
 	return nil
 }
 
+// processAgentContexts resolves Agent-level contexts into a ConfigMap, file mounts, dir mounts, and git mounts.
+// This is similar to TaskReconciler.processAllContexts but only handles Agent.contexts (no Task description).
+func (r *AgentReconciler) processAgentContexts(ctx context.Context, agent *kubeopenv1alpha1.Agent, cfg agentConfig) (*corev1.ConfigMap, []fileMount, []dirMount, []gitMount, error) {
+	if len(cfg.contexts) == 0 {
+		return nil, nil, nil, nil, nil
+	}
+
+	// Resolve all context items
+	resolved, dirMounts, gitMounts, err := processContextItems(r.Client, ctx, cfg.contexts, agent.Namespace, cfg.workspaceDir)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to resolve Agent contexts: %w", err)
+	}
+
+	// Build ConfigMap data from resolved contexts
+	configMapData, fileMounts := buildContextConfigMapData(resolved, cfg.workspaceDir)
+
+	// Add OpenCode config to ConfigMap if provided (same as Pod mode)
+	if cfg.config != nil && *cfg.config != "" {
+		configMapKey := sanitizeConfigMapKey(OpenCodeConfigPath)
+		configMapData[configMapKey] = *cfg.config
+		fileMounts = append(fileMounts, fileMount{filePath: OpenCodeConfigPath})
+	}
+
+	// Validate mount path conflicts
+	if err := validateMountPathConflicts(fileMounts, dirMounts, gitMounts); err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	// Build ConfigMap
+	var contextConfigMap *corev1.ConfigMap
+	if len(configMapData) > 0 {
+		contextConfigMap = BuildServerContextConfigMap(agent, configMapData)
+	}
+
+	return contextConfigMap, fileMounts, dirMounts, gitMounts, nil
+}
+
+// reconcileContextConfigMap ensures the context ConfigMap exists and is up-to-date.
+func (r *AgentReconciler) reconcileContextConfigMap(ctx context.Context, agent *kubeopenv1alpha1.Agent, desired *corev1.ConfigMap) error {
+	logger := log.FromContext(ctx)
+	configMapName := ServerContextConfigMapName(agent.Name)
+
+	if desired == nil {
+		// No contexts — clean up existing ConfigMap if present
+		var existing corev1.ConfigMap
+		if err := r.Get(ctx, client.ObjectKey{Namespace: agent.Namespace, Name: configMapName}, &existing); err == nil {
+			logger.Info("Cleaning up stale context ConfigMap", "configmap", configMapName)
+			if err := r.Delete(ctx, &existing); err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf("failed to delete context ConfigMap: %w", err)
+			}
+		}
+		return nil
+	}
+
+	// Set owner reference for garbage collection
+	if err := controllerutil.SetControllerReference(agent, desired, r.Scheme); err != nil {
+		return fmt.Errorf("failed to set owner reference on context ConfigMap: %w", err)
+	}
+
+	// Check if ConfigMap exists
+	var existing corev1.ConfigMap
+	err := r.Get(ctx, client.ObjectKey{Namespace: desired.Namespace, Name: desired.Name}, &existing)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			logger.Info("Creating context ConfigMap for Server-mode Agent", "configmap", desired.Name)
+			if err := r.Create(ctx, desired); err != nil {
+				return fmt.Errorf("failed to create context ConfigMap: %w", err)
+			}
+			return nil
+		}
+		return fmt.Errorf("failed to get context ConfigMap: %w", err)
+	}
+
+	// Update ConfigMap data
+	existing.Data = desired.Data
+	existing.Labels = desired.Labels
+	if err := r.Update(ctx, &existing); err != nil {
+		return fmt.Errorf("failed to update context ConfigMap: %w", err)
+	}
+
+	return nil
+}
+
 // cleanupServerResources removes Deployment and Service if they exist.
 // This is called when an Agent is changed from Server-mode to Pod-mode.
 func (r *AgentReconciler) cleanupServerResources(ctx context.Context, agent *kubeopenv1alpha1.Agent) error {
@@ -252,6 +349,16 @@ func (r *AgentReconciler) cleanupServerResources(ctx context.Context, agent *kub
 		logger.Info("Cleaning up stale Service", "service", serviceName)
 		if err := r.Delete(ctx, &service); err != nil && !apierrors.IsNotFound(err) {
 			return fmt.Errorf("failed to delete Service: %w", err)
+		}
+	}
+
+	// Delete context ConfigMap if exists
+	contextCMName := ServerContextConfigMapName(agent.Name)
+	var contextCM corev1.ConfigMap
+	if err := r.Get(ctx, client.ObjectKey{Namespace: agent.Namespace, Name: contextCMName}, &contextCM); err == nil {
+		logger.Info("Cleaning up stale context ConfigMap", "configmap", contextCMName)
+		if err := r.Delete(ctx, &contextCM); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("failed to delete context ConfigMap: %w", err)
 		}
 	}
 
@@ -283,5 +390,6 @@ func (r *AgentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&kubeopenv1alpha1.Agent{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
+		Owns(&corev1.ConfigMap{}).
 		Complete(r)
 }
