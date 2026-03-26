@@ -92,7 +92,9 @@ func (h *HITLHandler) getServerURL(ctx context.Context, namespace, taskName stri
 func (h *HITLHandler) StreamEvents(w http.ResponseWriter, r *http.Request) {
 	namespace := chi.URLParam(r, "namespace")
 	name := chi.URLParam(r, "name")
-	ctx := r.Context()
+	// Detach from chi's timeout context (60s) to support long-lived SSE streams.
+	// The stream will still terminate when the client disconnects (write errors).
+	ctx := context.WithoutCancel(r.Context())
 
 	serverURL, err := h.getServerURL(ctx, namespace, name)
 	if err != nil {

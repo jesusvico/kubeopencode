@@ -96,6 +96,14 @@ server:
     type: ClusterIP
     port: 2746
 
+  # Authentication configuration
+  # Enable when exposing the server externally (via Ingress) for agent proxy access.
+  # Uses Kubernetes TokenReview to validate Bearer tokens from kubeconfig.
+  auth:
+    enabled: true
+    # Allow unauthenticated requests (for development only)
+    allowAnonymous: false
+
   # Ingress configuration
   ingress:
     enabled: false
@@ -103,6 +111,11 @@ server:
     annotations: {}
     # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
+    #
+    # Required for agent proxy (SSE streaming) with nginx ingress:
+    # nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    # nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    # nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
     hosts:
       - host: kubeopencode.local
         paths:

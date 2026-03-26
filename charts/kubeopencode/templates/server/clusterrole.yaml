@@ -26,4 +26,14 @@ rules:
 - apiGroups: [""]
   resources: ["namespaces"]
   verbs: ["get", "list"]
+{{- if .Values.server.auth.enabled }}
+# Impersonation (required when auth is enabled for per-user RBAC enforcement)
+- apiGroups: [""]
+  resources: ["users", "groups", "serviceaccounts"]
+  verbs: ["impersonate"]
+# TokenReview for Bearer token authentication
+- apiGroups: ["authentication.k8s.io"]
+  resources: ["tokenreviews"]
+  verbs: ["create"]
+{{- end }}
 {{- end }}

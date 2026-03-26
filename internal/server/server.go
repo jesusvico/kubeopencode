@@ -201,6 +201,14 @@ func (s *Server) setupRoutes() *chi.Mux {
 		r.Route("/namespaces/{namespace}/agents", func(r chi.Router) {
 			r.Get("/", agentHandler.List)
 			r.Get("/{name}", agentHandler.Get)
+
+			// Agent proxy - reverse proxy to OpenCode agent servers
+			// Supports HTTP REST and SSE streaming for opencode attach
+			agentProxyHandler := handlers.NewAgentProxyHandler(s.k8sClient)
+			r.Route("/{name}/proxy", func(r chi.Router) {
+				r.HandleFunc("/*", agentProxyHandler.ServeProxy)
+				r.HandleFunc("/", agentProxyHandler.ServeProxy)
+			})
 		})
 
 	})

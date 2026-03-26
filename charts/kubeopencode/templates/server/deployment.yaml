@@ -38,6 +38,12 @@ spec:
         - server
         args:
         - --address=:{{ .Values.server.service.port }}
+        {{- if .Values.server.auth.enabled }}
+        - --auth-enabled=true
+        {{- if .Values.server.auth.allowAnonymous }}
+        - --auth-allow-anonymous=true
+        {{- end }}
+        {{- end }}
         securityContext:
           {{- toYaml .Values.server.securityContext | nindent 10 }}
         livenessProbe:

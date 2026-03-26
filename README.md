@@ -136,6 +136,39 @@ kubectl logs $(kubectl get task my-task -o jsonpath='{.status.podName}') -n kube
 
 See the [Getting Started Guide](docs/getting-started.md) for detailed examples including batch operations and Web UI access.
 
+### CLI
+
+The KubeOpenCode CLI lets you list agents and interactively attach to server-mode agents from your terminal — no `kubectl port-forward` needed.
+
+**Install:**
+
+```bash
+go install github.com/kubeopencode/kubeopencode/cmd/koc@latest
+```
+
+**Configure** (optional — defaults to `KUBECONFIG` / `~/.kube/config`):
+
+```bash
+# Point to the cluster where KubeOpenCode agents run
+export KUBEOPENCODE_KUBECONFIG=/path/to/agent-cluster.kubeconfig
+```
+
+**Usage:**
+
+```bash
+# List available agents
+koc get agents
+
+# NAMESPACE    NAME           PROFILE                          MODE     STATUS
+# test         my-agent       General-purpose dev agent         Server   Ready
+# prod         review-bot     Automated code review agent       Server   Ready
+
+# Attach to an agent (connects via kube-apiserver service proxy)
+koc agent attach my-agent -n test
+```
+
+The CLI authenticates using your kubeconfig credentials and connects through the kube-apiserver's built-in service proxy — no Ingress or port-forward required.
+
 ## Documentation
 
 | Guide | Description |
