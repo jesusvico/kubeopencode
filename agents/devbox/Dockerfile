@@ -113,6 +113,21 @@ RUN curl -fsSL https://download.docker.com/linux/debian/gpg | \
 RUN apt-get update && apt-get install -y --no-install-recommends zsh \
     && rm -rf /var/lib/apt/lists/*
 
+# === LSP Servers ===
+# Language Server Protocol servers for AI agent code intelligence.
+# OpenCode auto-detects file extensions and starts the corresponding LSP,
+# providing go-to-definition, find-references, diagnostics, and hover info.
+
+# gopls (Go LSP) - install to /usr/local/bin via GOBIN
+RUN GOBIN=/usr/local/bin go install golang.org/x/tools/gopls@latest \
+    && rm -rf /root/.cache/go-build /root/go
+
+# typescript-language-server (TypeScript/JavaScript LSP)
+RUN npm install -g typescript-language-server typescript
+
+# pylsp (Python LSP)
+RUN pip install --break-system-packages --no-cache-dir python-lsp-server
+
 # === GitHub App Authentication Scripts ===
 # These scripts provide transparent GitHub authentication for gh CLI and git.
 # When GitHub App credentials are mounted to /etc/github-app/, the scripts
