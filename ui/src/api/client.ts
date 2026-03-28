@@ -82,7 +82,7 @@ export interface ServerStatusInfo {
   deploymentName?: string;
   serviceName?: string;
   url?: string;
-  readyReplicas: number;
+  ready: boolean;
   port?: number;
 }
 

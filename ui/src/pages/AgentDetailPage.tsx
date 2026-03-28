@@ -119,17 +119,17 @@ function AgentDetailPage() {
             </div>
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium border ${
               agent.mode === 'Server'
-                ? agent.serverStatus?.readyReplicas
+                ? agent.serverStatus?.ready
                   ? 'bg-violet-50 text-violet-600 border-violet-200'
                   : 'bg-amber-50 text-amber-600 border-amber-200'
                 : 'bg-stone-50 text-stone-500 border-stone-200'
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full ${
                 agent.mode === 'Server'
-                  ? agent.serverStatus?.readyReplicas ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
+                  ? agent.serverStatus?.ready ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
                   : 'bg-stone-400'
               }`} />
-              {agent.mode} Mode{agent.mode === 'Server' && !agent.serverStatus?.readyReplicas ? ' (Not Ready)' : ''}
+              {agent.mode} Mode{agent.mode === 'Server' && !agent.serverStatus?.ready ? ' (Not Ready)' : ''}
             </span>
           </div>
         </div>
@@ -210,8 +210,8 @@ function AgentDetailPage() {
                     <dd className="mt-1 text-sm text-stone-700 font-mono break-all">{agent.serverStatus.url}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-stone-400">Ready Replicas</dt>
-                    <dd className="mt-1 text-sm text-stone-700 font-mono">{agent.serverStatus.readyReplicas}</dd>
+                    <dt className="text-xs text-stone-400">Ready</dt>
+                    <dd className="mt-1 text-sm text-stone-700 font-mono">{agent.serverStatus.ready ? 'Yes' : 'No'}</dd>
                   </div>
                 </div>
               ) : (
@@ -229,7 +229,7 @@ function AgentDetailPage() {
           )}
 
           {/* Terminal Panel (Server mode, ready) */}
-          {agent.mode === 'Server' && agent.serverStatus && (agent.serverStatus.readyReplicas ?? 0) > 0 && (
+          {agent.mode === 'Server' && agent.serverStatus && agent.serverStatus.ready && (
             <TerminalPanel namespace={agent.namespace} agentName={agent.name} />
           )}
 

@@ -100,7 +100,7 @@ export const mockAgents: Agent[] = [
       deploymentName: 'restricted-agent-server',
       serviceName: 'restricted-agent',
       url: 'http://restricted-agent.production.svc.cluster.local:4096',
-      readyReplicas: 1,
+      ready: true,
       port: 4096,
     },
     conditions: [
