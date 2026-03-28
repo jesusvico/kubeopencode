@@ -15,7 +15,7 @@
 
 ## Demo
 
-<video src="https://github.com/kubeopencode/kubeopencode/releases/download/v0.0.12/kube-intro.mp4" controls width="100%"></video>
+[![Watch Demo](https://img.shields.io/badge/▶_Watch_Demo-black?style=for-the-badge&logo=x&logoColor=white)](https://x.com/Xzhaojun/status/2035704972642517133)
 
 ## Overview
 
