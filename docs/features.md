@@ -90,6 +90,92 @@ spec:
       fileMode: 0400
 ```
 
+## Custom CA Certificates
+
+When accessing private Git servers or internal HTTPS services that use self-signed or private CA certificates, configure `caBundle` on the Agent to mount custom CA certificates into all containers.
+
+### ConfigMap Example (trust-manager Compatible)
+
+If you use [cert-manager trust-manager](https://cert-manager.io/docs/trust/trust-manager/), it can automatically populate a ConfigMap with your organization's CA bundle. KubeOpenCode's default key (`ca-bundle.crt`) matches trust-manager's convention.
+
+```yaml
+apiVersion: kubeopencode.io/v1alpha1
+kind: Agent
+metadata:
+  name: internal-agent
+spec:
+  profile: "Agent with custom CA for internal services"
+  agentImage: quay.io/kubeopencode/kubeopencode-agent-opencode:latest
+  executorImage: quay.io/kubeopencode/kubeopencode-agent-devbox:latest
+  workspaceDir: /workspace
+  serviceAccountName: kubeopencode-agent
+  caBundle:
+    configMapRef:
+      name: custom-ca-bundle       # ConfigMap containing the CA certificate
+      key: ca-bundle.crt           # Optional, defaults to "ca-bundle.crt"
+```
+
+### Secret Example
+
+```yaml
+apiVersion: kubeopencode.io/v1alpha1
+kind: Agent
+metadata:
+  name: internal-agent
+spec:
+  profile: "Agent with custom CA from Secret"
+  agentImage: quay.io/kubeopencode/kubeopencode-agent-opencode:latest
+  executorImage: quay.io/kubeopencode/kubeopencode-agent-devbox:latest
+  workspaceDir: /workspace
+  serviceAccountName: kubeopencode-agent
+  caBundle:
+    secretRef:
+      name: custom-ca-secret       # Secret containing the CA certificate
+      key: ca.crt                  # Optional, defaults to "ca.crt"
+```
+
+### How It Works
+
+- The CA certificate is mounted at `/etc/ssl/certs/custom-ca/tls.crt` in **all** containers (init containers and the worker container)
+- The `CUSTOM_CA_CERT_PATH` environment variable is set in all containers
+- **git-init**: Concatenates the custom CA with system CAs and sets `GIT_SSL_CAINFO` so `git clone` trusts the private server
+- **url-fetch**: Appends the custom CA to Go's x509 system certificate pool for HTTPS URL fetching
+
+This is the recommended approach for private HTTPS servers. Avoid disabling TLS verification (`InsecureSkipTLSVerify`) in favor of proper CA bundle configuration.
+
+### Multiple CA Certificates
+
+The `caBundle` field accepts a single ConfigMap or Secret reference, but PEM format supports multiple certificates in one file. To trust multiple CAs, concatenate them into a single bundle:
+
+```bash
+# Combine multiple CA certificates into one PEM bundle
+cat internal-ca.crt partner-ca.crt > combined-ca-bundle.crt
+kubectl create configmap custom-ca-bundle --from-file=ca-bundle.crt=combined-ca-bundle.crt
+```
+
+If you use [cert-manager trust-manager](https://cert-manager.io/docs/trust/trust-manager/), it handles multi-source aggregation automatically:
+
+```yaml
+apiVersion: trust.cert-manager.io/v1alpha1
+kind: Bundle
+metadata:
+  name: custom-ca-bundle
+spec:
+  sources:
+    - useDefaultCAs: true          # Include public CAs
+    - secret:
+        name: internal-ca
+        key: ca.crt
+    - configMap:
+        name: partner-ca
+        key: ca-bundle.crt
+  target:
+    configMap:
+      key: ca-bundle.crt           # Matches KubeOpenCode's default key
+```
+
+> **Note**: `git-init` automatically concatenates the custom CA bundle with the container's system CAs, so public HTTPS (e.g., github.com) continues working even when `caBundle` is configured. You do not need to include public CAs in your bundle unless you want to explicitly control the full trust chain.
+
 ## OpenCode Configuration
 
 The `config` field allows you to provide OpenCode configuration as an inline JSON string:
