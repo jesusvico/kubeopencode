@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '../api/client';
@@ -7,6 +7,7 @@ import Skeleton from '../components/Skeleton';
 import ResourceFilter from '../components/ResourceFilter';
 import { useFilterState } from '../hooks/useFilterState';
 import { getNamespaceCookie, setNamespaceCookie } from '../utils/cookies';
+import { LABEL_AGENT_TEMPLATE, FILTER_HAS_TEMPLATE, FILTER_NO_TEMPLATE, appendLabelSelector } from '../utils/labels';
 
 const PAGE_SIZE = 12;
 
@@ -15,6 +16,7 @@ function AgentsPage() {
     return getNamespaceCookie() || '';
   });
   const [currentPage, setCurrentPage] = useState(1);
+  const [templateFilter, setTemplateFilter] = useState('');
   const [filters, setFilters] = useFilterState();
 
   const handleNamespaceChange = (newNamespace: string) => {
@@ -26,27 +28,54 @@ function AgentsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedNamespace, filters.name, filters.labelSelector]);
+  }, [selectedNamespace, templateFilter, filters.name, filters.labelSelector]);
+
+  // Reset template filter when namespace changes
+  useEffect(() => {
+    setTemplateFilter('');
+  }, [selectedNamespace]);
 
   const { data: namespacesData } = useQuery({
     queryKey: ['namespaces'],
     queryFn: () => api.getNamespaces(),
   });
 
-  const filterParams = {
-    name: filters.name || undefined,
-    labelSelector: filters.labelSelector || undefined,
-    limit: PAGE_SIZE,
-    offset: (currentPage - 1) * PAGE_SIZE,
-    sortOrder: 'desc' as const,
-  };
-
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['agents', selectedNamespace, currentPage, filters.name, filters.labelSelector],
+  const { data: templatesData } = useQuery({
+    queryKey: ['templates-for-filter', selectedNamespace],
     queryFn: () =>
       selectedNamespace
-        ? api.listAgents(selectedNamespace, filterParams)
-        : api.listAllAgents(filterParams),
+        ? api.listAgentTemplates(selectedNamespace, { limit: 100, sortOrder: 'asc' })
+        : api.listAllAgentTemplates({ limit: 100, sortOrder: 'asc' }),
+    staleTime: 60_000,
+  });
+
+  const uniqueTemplateNames = useMemo(
+    () => templatesData ? [...new Set(templatesData.templates.map((t) => t.name))] : [],
+    [templatesData]
+  );
+
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['agents', selectedNamespace, currentPage, templateFilter, filters.name, filters.labelSelector],
+    queryFn: () => {
+      let labelSelector = filters.labelSelector || '';
+      if (templateFilter === FILTER_HAS_TEMPLATE) {
+        labelSelector = appendLabelSelector(labelSelector, LABEL_AGENT_TEMPLATE);
+      } else if (templateFilter === FILTER_NO_TEMPLATE) {
+        labelSelector = appendLabelSelector(labelSelector, `!${LABEL_AGENT_TEMPLATE}`);
+      } else if (templateFilter) {
+        labelSelector = appendLabelSelector(labelSelector, `${LABEL_AGENT_TEMPLATE}=${templateFilter}`);
+      }
+      const params = {
+        name: filters.name || undefined,
+        labelSelector: labelSelector || undefined,
+        limit: PAGE_SIZE,
+        offset: (currentPage - 1) * PAGE_SIZE,
+        sortOrder: 'desc' as const,
+      };
+      return selectedNamespace
+        ? api.listAgents(selectedNamespace, params)
+        : api.listAllAgents(params);
+    },
   });
 
   return (
@@ -74,12 +103,29 @@ function AgentsPage() {
         </div>
       </div>
 
-      <div className="mb-4">
+      <div className="mb-4 space-y-3">
         <ResourceFilter
           filters={filters}
           onFilterChange={setFilters}
           placeholder="Filter agents by name..."
         />
+        {uniqueTemplateNames.length > 0 && (
+          <div className="flex items-center space-x-1.5">
+            <span className="text-xs text-stone-400">Template:</span>
+            <select
+              value={templateFilter}
+              onChange={(e) => setTemplateFilter(e.target.value)}
+              className="block w-44 rounded-lg border-stone-200 bg-white shadow-sm focus:border-primary-500 focus:ring-primary-500 text-xs text-stone-700 py-1.5"
+            >
+              <option value="">All</option>
+              <option value={FILTER_HAS_TEMPLATE}>Has Template</option>
+              <option value={FILTER_NO_TEMPLATE}>No Template</option>
+              {uniqueTemplateNames.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {isLoading ? (
@@ -142,6 +188,14 @@ function AgentsPage() {
                   )}
 
                   <div className="mt-4 space-y-1.5">
+                    {agent.templateRef && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-stone-400">Template</span>
+                        <span className="text-primary-600 font-mono text-[11px] truncate max-w-[140px]">
+                          {agent.templateRef.name}
+                        </span>
+                      </div>
+                    )}
                     {agent.maxConcurrentTasks && (
                       <div className="flex justify-between text-xs">
                         <span className="text-stone-400">Concurrency</span>

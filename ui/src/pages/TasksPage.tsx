@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '../api/client';
@@ -9,6 +9,7 @@ import ResourceFilter from '../components/ResourceFilter';
 import { TableSkeleton } from '../components/Skeleton';
 import { useFilterState } from '../hooks/useFilterState';
 import { getNamespaceCookie, setNamespaceCookie } from '../utils/cookies';
+import { LABEL_AGENT, appendLabelSelector } from '../utils/labels';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 const ALL_NAMESPACES = '__all__';
@@ -24,6 +25,7 @@ function TasksPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [phaseFilter, setPhaseFilter] = useState('');
+  const [agentFilter, setAgentFilter] = useState('');
   const [filters, setFilters] = useFilterState();
 
   useEffect(() => {
@@ -45,7 +47,12 @@ function TasksPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [namespace, phaseFilter, filters.name, filters.labelSelector]);
+  }, [namespace, phaseFilter, agentFilter, filters.name, filters.labelSelector]);
+
+  // Reset agent filter when namespace changes
+  useEffect(() => {
+    setAgentFilter('');
+  }, [namespace]);
 
   const { data: namespacesData } = useQuery({
     queryKey: ['namespaces'],
@@ -54,15 +61,33 @@ function TasksPage() {
 
   const isAllNamespaces = namespace === ALL_NAMESPACES;
 
+  const { data: agentsData } = useQuery({
+    queryKey: ['agents-for-filter', namespace],
+    queryFn: () =>
+      isAllNamespaces
+        ? api.listAllAgents({ limit: 100, sortOrder: 'asc' })
+        : api.listAgents(namespace, { limit: 100, sortOrder: 'asc' }),
+    staleTime: 60_000,
+  });
+
+  const uniqueAgentNames = useMemo(
+    () => agentsData ? [...new Set(agentsData.agents.map((a) => a.name))] : [],
+    [agentsData]
+  );
+
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['tasks', namespace, currentPage, pageSize, phaseFilter, filters.name, filters.labelSelector],
+    queryKey: ['tasks', namespace, currentPage, pageSize, phaseFilter, agentFilter, filters.name, filters.labelSelector],
     queryFn: () => {
+      let labelSelector = filters.labelSelector || '';
+      if (agentFilter) {
+        labelSelector = appendLabelSelector(labelSelector, `${LABEL_AGENT}=${agentFilter}`);
+      }
       const params = {
         limit: pageSize,
         offset: (currentPage - 1) * pageSize,
         sortOrder: 'desc' as const,
         name: filters.name || undefined,
-        labelSelector: filters.labelSelector || undefined,
+        labelSelector: labelSelector || undefined,
         phase: phaseFilter || undefined,
       };
       return isAllNamespaces
@@ -113,20 +138,37 @@ function TasksPage() {
           onFilterChange={setFilters}
           placeholder="Filter tasks by name..."
         />
-        <div className="flex items-center space-x-1.5">
-          {PHASE_OPTIONS.map((phase) => (
-            <button
-              key={phase || 'all'}
-              onClick={() => setPhaseFilter(phase)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                phaseFilter === phase
-                  ? 'bg-stone-900 text-white border-stone-900'
-                  : 'bg-white text-stone-500 border-stone-200 hover:border-stone-300 hover:text-stone-700'
-              }`}
-            >
-              {phase || 'All'}
-            </button>
-          ))}
+        <div className="flex items-center space-x-3 flex-wrap gap-y-2">
+          <div className="flex items-center space-x-1.5">
+            {PHASE_OPTIONS.map((phase) => (
+              <button
+                key={phase || 'all'}
+                onClick={() => setPhaseFilter(phase)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                  phaseFilter === phase
+                    ? 'bg-stone-900 text-white border-stone-900'
+                    : 'bg-white text-stone-500 border-stone-200 hover:border-stone-300 hover:text-stone-700'
+                }`}
+              >
+                {phase || 'All'}
+              </button>
+            ))}
+          </div>
+          {uniqueAgentNames.length > 0 && (
+            <div className="flex items-center space-x-1.5">
+              <span className="text-xs text-stone-400">Agent:</span>
+              <select
+                value={agentFilter}
+                onChange={(e) => setAgentFilter(e.target.value)}
+                className="block w-40 rounded-lg border-stone-200 bg-white shadow-sm focus:border-primary-500 focus:ring-primary-500 text-xs text-stone-700 py-1.5"
+              >
+                <option value="">All Agents</option>
+                {uniqueAgentNames.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
