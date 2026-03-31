@@ -57,6 +57,8 @@ const (
 	ReasonPermissionRequired = "PermissionRequired"
 	// ReasonQuestionAsked is the reason when agent asks a question
 	ReasonQuestionAsked = "QuestionAsked"
+	// ReasonAgentSuspended is the reason when agent is suspended (scaled to 0)
+	ReasonAgentSuspended = "AgentSuspended"
 )
 
 // +genclient

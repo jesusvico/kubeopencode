@@ -183,6 +183,30 @@ func (r *TaskReconciler) initializeTask(ctx context.Context, task *kubeopenv1alp
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	// Check if agent is suspended (Server mode only)
+	// Use agentConfig.serverConfig directly — no extra API call needed
+	if agentConfig.serverConfig != nil && agentConfig.serverConfig.Suspend {
+		log.Info("agent is suspended, queueing task", "agent", agentName)
+		r.Recorder.Eventf(task, nil, corev1.EventTypeNormal, "Queued", "Queued", "Agent %q is suspended, task queued", agentName)
+
+		task.Status.ObservedGeneration = task.Generation
+		task.Status.Phase = kubeopenv1alpha1.TaskPhaseQueued
+		task.Status.AgentRef = &kubeopenv1alpha1.AgentReference{Name: agentName}
+
+		meta.SetStatusCondition(&task.Status.Conditions, metav1.Condition{
+			Type:    kubeopenv1alpha1.ConditionTypeQueued,
+			Status:  metav1.ConditionTrue,
+			Reason:  kubeopenv1alpha1.ReasonAgentSuspended,
+			Message: fmt.Sprintf("Agent %q is suspended", agentName),
+		})
+
+		if err := r.Status().Update(ctx, task); err != nil {
+			log.Error(err, "unable to update Task status")
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: DefaultQueuedRequeueDelay}, nil
+	}
+
 	// Check agent capacity if MaxConcurrentTasks is set
 	if agentConfig.maxConcurrentTasks != nil && *agentConfig.maxConcurrentTasks > 0 {
 		hasCapacity, err := r.checkAgentCapacity(ctx, task.Namespace, agentName, *agentConfig.maxConcurrentTasks)
@@ -858,6 +882,12 @@ func (r *TaskReconciler) handleQueuedTask(ctx context.Context, task *kubeopenv1a
 			return ctrl.Result{}, updateErr
 		}
 		return ctrl.Result{}, nil
+	}
+
+	// Check if agent is still suspended
+	if agentConfig.serverConfig != nil && agentConfig.serverConfig.Suspend {
+		log.V(1).Info("agent still suspended, remaining queued", "agent", agentName)
+		return ctrl.Result{RequeueAfter: DefaultQueuedRequeueDelay}, nil
 	}
 
 	// Check if agent still has MaxConcurrentTasks set

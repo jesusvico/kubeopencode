@@ -1338,6 +1338,32 @@ func TestBuildServerDeployment_WithWorkspacePersistence(t *testing.T) {
 	t.Error("workspace volume not found")
 }
 
+func TestBuildServerDeployment_SuspendedAgentStillBuildsDeployment(t *testing.T) {
+	agent := &kubeopenv1alpha1.Agent{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-agent", Namespace: "default"},
+		Spec: kubeopenv1alpha1.AgentSpec{
+			ServerConfig: &kubeopenv1alpha1.ServerConfig{
+				Port:    4096,
+				Suspend: true,
+			},
+		},
+	}
+	cfg := agentConfig{
+		executorImage: "test-executor:v1.0.0",
+		agentImage:    "test-agent:v1.0.0",
+		workspaceDir:  "/workspace",
+	}
+
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil)
+	if deployment == nil {
+		t.Fatal("BuildServerDeployment should return non-nil even when suspended")
+	}
+	// BuildServerDeployment always sets replicas=1; controller overrides for suspend
+	if *deployment.Spec.Replicas != 1 {
+		t.Errorf("replicas = %d, want 1", *deployment.Spec.Replicas)
+	}
+}
+
 func TestBuildServerDeployment_WithoutWorkspacePersistence(t *testing.T) {
 	agent := &kubeopenv1alpha1.Agent{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-agent", Namespace: "default"},

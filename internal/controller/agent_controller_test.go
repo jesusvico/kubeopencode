@@ -392,6 +392,113 @@ var _ = Describe("AgentController", func() {
 		})
 	})
 
+	Context("When suspending a Server-mode Agent", func() {
+		It("Should scale Deployment to 0 replicas and set Suspended status", func() {
+			agentName := "test-suspend-agent"
+
+			By("Creating a Server-mode Agent")
+			agent := &kubeopenv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      agentName,
+					Namespace: agentNamespace,
+				},
+				Spec: kubeopenv1alpha1.AgentSpec{
+					ExecutorImage:      "quay.io/kubeopencode/kubeopencode-agent-devbox:latest",
+					WorkspaceDir:       "/workspace",
+					ServiceAccountName: "test-agent",
+					ServerConfig: &kubeopenv1alpha1.ServerConfig{
+						Port: 4096,
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, agent)).Should(Succeed())
+
+			By("Waiting for Deployment to be created")
+			deploymentName := ServerDeploymentName(agentName)
+			Eventually(func() error {
+				var deployment appsv1.Deployment
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name:      deploymentName,
+					Namespace: agentNamespace,
+				}, &deployment)
+			}, timeout, interval).Should(Succeed())
+
+			By("Suspending the Agent")
+			var updatedAgent kubeopenv1alpha1.Agent
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      agentName,
+				Namespace: agentNamespace,
+			}, &updatedAgent)).Should(Succeed())
+			updatedAgent.Spec.ServerConfig.Suspend = true
+			Expect(k8sClient.Update(ctx, &updatedAgent)).Should(Succeed())
+
+			By("Expecting Deployment to scale to 0 replicas")
+			Eventually(func() int32 {
+				var deployment appsv1.Deployment
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      deploymentName,
+					Namespace: agentNamespace,
+				}, &deployment); err != nil {
+					return -1
+				}
+				if deployment.Spec.Replicas == nil {
+					return 1
+				}
+				return *deployment.Spec.Replicas
+			}, timeout, interval).Should(Equal(int32(0)))
+
+			By("Expecting Agent status to show Suspended")
+			Eventually(func() bool {
+				var a kubeopenv1alpha1.Agent
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      agentName,
+					Namespace: agentNamespace,
+				}, &a); err != nil {
+					return false
+				}
+				return a.Status.ServerStatus != nil && a.Status.ServerStatus.Suspended
+			}, timeout, interval).Should(BeTrue())
+
+			By("Resuming the Agent")
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      agentName,
+				Namespace: agentNamespace,
+			}, &updatedAgent)).Should(Succeed())
+			updatedAgent.Spec.ServerConfig.Suspend = false
+			Expect(k8sClient.Update(ctx, &updatedAgent)).Should(Succeed())
+
+			By("Expecting Deployment to scale back to 1 replica")
+			Eventually(func() int32 {
+				var deployment appsv1.Deployment
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      deploymentName,
+					Namespace: agentNamespace,
+				}, &deployment); err != nil {
+					return -1
+				}
+				if deployment.Spec.Replicas == nil {
+					return 1
+				}
+				return *deployment.Spec.Replicas
+			}, timeout, interval).Should(Equal(int32(1)))
+
+			By("Expecting Agent status to show not Suspended")
+			Eventually(func() bool {
+				var a kubeopenv1alpha1.Agent
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      agentName,
+					Namespace: agentNamespace,
+				}, &a); err != nil {
+					return true
+				}
+				return a.Status.ServerStatus != nil && a.Status.ServerStatus.Suspended
+			}, timeout, interval).Should(BeFalse())
+
+			By("Cleaning up the Agent")
+			Expect(k8sClient.Delete(ctx, agent)).Should(Succeed())
+		})
+	})
+
 	Context("When creating a Server-mode Agent with workspace persistence", func() {
 		It("Should create a workspace PVC", func() {
 			agentName := "test-workspace-persist-agent"

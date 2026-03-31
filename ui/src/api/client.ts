@@ -84,6 +84,7 @@ export interface ServerStatusInfo {
   url?: string;
   ready: boolean;
   port?: number;
+  suspended: boolean;
 }
 
 export interface Agent {
@@ -240,6 +241,12 @@ export const api = {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.text();
   },
+
+  suspendAgent: (namespace: string, name: string) =>
+    request<Agent>(`/namespaces/${namespace}/agents/${name}/suspend`, { method: 'POST' }),
+
+  resumeAgent: (namespace: string, name: string) =>
+    request<Agent>(`/namespaces/${namespace}/agents/${name}/resume`, { method: 'POST' }),
 
 };
 

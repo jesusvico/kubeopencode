@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/go-chi/chi/v5"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kubeopenv1alpha1 "github.com/kubeopencode/kubeopencode/api/v1alpha1"
@@ -229,6 +230,7 @@ func agentToResponse(agent *kubeopenv1alpha1.Agent) types.AgentResponse {
 			URL:            agent.Status.ServerStatus.URL,
 			Ready:          agent.Status.ServerStatus.Ready,
 			Port:           controller.GetServerPort(agent),
+			Suspended:      agent.Status.ServerStatus.Suspended,
 		}
 	}
 
@@ -259,4 +261,44 @@ func agentToResponse(agent *kubeopenv1alpha1.Agent) types.AgentResponse {
 	}
 
 	return resp
+}
+
+// Suspend scales the server deployment to 0 replicas.
+func (h *AgentHandler) Suspend(w http.ResponseWriter, r *http.Request) {
+	h.setSuspendState(w, r, true)
+}
+
+// Resume scales the server deployment back to 1 replica.
+func (h *AgentHandler) Resume(w http.ResponseWriter, r *http.Request) {
+	h.setSuspendState(w, r, false)
+}
+
+func (h *AgentHandler) setSuspendState(w http.ResponseWriter, r *http.Request, suspend bool) {
+	namespace := chi.URLParam(r, "namespace")
+	name := chi.URLParam(r, "name")
+	ctx := r.Context()
+	k8sClient := h.getClient(ctx)
+
+	var agent kubeopenv1alpha1.Agent
+	if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &agent); err != nil {
+		if apierrors.IsNotFound(err) {
+			writeError(w, http.StatusNotFound, "Agent not found", err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "Failed to get Agent", err.Error())
+		return
+	}
+
+	if agent.Spec.ServerConfig == nil {
+		writeError(w, http.StatusBadRequest, "Invalid operation", "Suspend is only supported for Server-mode agents")
+		return
+	}
+
+	agent.Spec.ServerConfig.Suspend = suspend
+	if err := k8sClient.Update(ctx, &agent); err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to update Agent", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, agentToResponse(&agent))
 }

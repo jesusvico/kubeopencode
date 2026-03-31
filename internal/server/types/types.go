@@ -120,6 +120,7 @@ type ServerStatusInfo struct {
 	URL            string `json:"url,omitempty"`
 	Ready          bool   `json:"ready"`
 	Port           int32  `json:"port,omitempty"`
+	Suspended      bool   `json:"suspended"`
 }
 
 // LogEvent represents a Server-Sent Event for log streaming

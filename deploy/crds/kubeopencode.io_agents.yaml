@@ -2217,6 +2217,18 @@ spec:
                     maximum: 65535
                     minimum: 1
                     type: integer
+                  suspend:
+                    description: |-
+                      Suspend scales the server deployment to 0 replicas when true.
+                      The server is stopped but PVCs and Service are retained, so the agent
+                      can be resumed without data loss. Tasks targeting a suspended agent
+                      enter Queued phase until the agent is resumed.
+
+                      This is useful for saving compute resources during off-hours while
+                      preserving session history and workspace state via persistent storage.
+
+                      Similar to Kubernetes CronJob's spec.suspend field.
+                    type: boolean
                 type: object
               serviceAccountName:
                 description: |-
@@ -2327,6 +2339,12 @@ spec:
                       ServiceName is the name of the Kubernetes Service exposing the server.
                       Format: "{agent-name}"
                     type: string
+                  suspended:
+                    description: |-
+                      Suspended indicates the server is intentionally scaled to 0 replicas.
+                      When true, Ready is always false. Use this to distinguish "suspended"
+                      from "not ready due to an issue".
+                    type: boolean
                   url:
                     description: |-
                       URL is the in-cluster URL to reach the OpenCode server.

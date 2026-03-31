@@ -192,6 +192,8 @@ func (s *Server) setupRoutes() *chi.Mux {
 		r.Route("/namespaces/{namespace}/agents", func(r chi.Router) {
 			r.Get("/", agentHandler.List)
 			r.Get("/{name}", agentHandler.Get)
+			r.Post("/{name}/suspend", agentHandler.Suspend)
+			r.Post("/{name}/resume", agentHandler.Resume)
 
 			// Agent proxy - reverse proxy to OpenCode agent servers
 			// Supports HTTP REST and SSE streaming for opencode attach

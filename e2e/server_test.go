@@ -902,4 +902,82 @@ var _ = Describe("Server Mode E2E Tests", Label(LabelServer), func() {
 			}, timeout, interval).Should(BeTrue())
 		})
 	})
+
+	Context("Server Mode Agent - Suspend/Resume", func() {
+		It("should scale deployment to 0 when suspended and back to 1 when resumed", func() {
+			agentName := uniqueName("suspend-agent")
+
+			By("Creating Agent with serverConfig")
+			agent := &kubeopenv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      agentName,
+					Namespace: testNS,
+				},
+				Spec: kubeopenv1alpha1.AgentSpec{
+					ExecutorImage:      echoImage,
+					ServiceAccountName: testServiceAccount,
+					WorkspaceDir:       "/workspace",
+					ServerConfig: &kubeopenv1alpha1.ServerConfig{
+						Port: 4096,
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, agent)).Should(Succeed())
+
+			By("Waiting for Deployment to be created")
+			deploymentKey := types.NamespacedName{Name: controller.ServerDeploymentName(agentName), Namespace: testNS}
+			Eventually(func() bool {
+				deployment := &appsv1.Deployment{}
+				return k8sClient.Get(ctx, deploymentKey, deployment) == nil
+			}, timeout, interval).Should(BeTrue())
+
+			By("Suspending the Agent")
+			agentKey := types.NamespacedName{Name: agentName, Namespace: testNS}
+			var updated kubeopenv1alpha1.Agent
+			Expect(k8sClient.Get(ctx, agentKey, &updated)).Should(Succeed())
+			updated.Spec.ServerConfig.Suspend = true
+			Expect(k8sClient.Update(ctx, &updated)).Should(Succeed())
+
+			By("Expecting Deployment to scale to 0 replicas")
+			Eventually(func() int32 {
+				deployment := &appsv1.Deployment{}
+				if err := k8sClient.Get(ctx, deploymentKey, deployment); err != nil {
+					return -1
+				}
+				if deployment.Spec.Replicas == nil {
+					return 1
+				}
+				return *deployment.Spec.Replicas
+			}, timeout, interval).Should(Equal(int32(0)))
+
+			By("Expecting Agent status to show Suspended")
+			Eventually(func() bool {
+				a := &kubeopenv1alpha1.Agent{}
+				if err := k8sClient.Get(ctx, agentKey, a); err != nil {
+					return false
+				}
+				return a.Status.ServerStatus != nil && a.Status.ServerStatus.Suspended
+			}, timeout, interval).Should(BeTrue())
+
+			By("Resuming the Agent")
+			Expect(k8sClient.Get(ctx, agentKey, &updated)).Should(Succeed())
+			updated.Spec.ServerConfig.Suspend = false
+			Expect(k8sClient.Update(ctx, &updated)).Should(Succeed())
+
+			By("Expecting Deployment to scale back to 1 replica")
+			Eventually(func() int32 {
+				deployment := &appsv1.Deployment{}
+				if err := k8sClient.Get(ctx, deploymentKey, deployment); err != nil {
+					return -1
+				}
+				if deployment.Spec.Replicas == nil {
+					return 1
+				}
+				return *deployment.Spec.Replicas
+			}, timeout, interval).Should(Equal(int32(1)))
+
+			By("Cleaning up")
+			Expect(k8sClient.Delete(ctx, agent)).Should(Succeed())
+		})
+	})
 })

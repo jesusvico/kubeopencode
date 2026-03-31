@@ -8,6 +8,38 @@ import YamlViewer from '../components/YamlViewer';
 import TerminalPanel from '../components/TerminalPanel';
 import { DetailSkeleton } from '../components/Skeleton';
 
+function SuspendResumeButton({ namespace, name, suspended, onSuccess }: { namespace: string; name: string; suspended: boolean; onSuccess: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const handleClick = async () => {
+    setLoading(true);
+    try {
+      if (suspended) {
+        await api.resumeAgent(namespace, name);
+      } else {
+        await api.suspendAgent(namespace, name);
+      }
+      onSuccess();
+    } catch (err) {
+      console.error('Failed to update agent suspend state:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <button
+      onClick={handleClick}
+      disabled={loading}
+      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+        suspended
+          ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+          : 'bg-amber-600 text-white hover:bg-amber-700'
+      } disabled:opacity-50`}
+    >
+      {loading ? '...' : suspended ? 'Resume' : 'Suspend'}
+    </button>
+  );
+}
+
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
@@ -66,7 +98,7 @@ function ServerConnectCommands({ namespace, agentName }: { namespace: string; ag
 function AgentDetailPage() {
   const { namespace, name } = useParams<{ namespace: string; name: string }>();
 
-  const { data: agent, isLoading, error } = useQuery({
+  const { data: agent, isLoading, error, refetch } = useQuery({
     queryKey: ['agent', namespace, name],
     queryFn: () => api.getAgent(namespace!, name!),
     enabled: !!namespace && !!name,
@@ -210,8 +242,24 @@ function AgentDetailPage() {
                     <dd className="mt-1 text-sm text-stone-700 font-mono break-all">{agent.serverStatus.url}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-stone-400">Ready</dt>
-                    <dd className="mt-1 text-sm text-stone-700 font-mono">{agent.serverStatus.ready ? 'Yes' : 'No'}</dd>
+                    <dt className="text-xs text-stone-400">Status</dt>
+                    <dd className="mt-1 text-sm font-mono">
+                      {agent.serverStatus.suspended ? (
+                        <span className="text-amber-600">Suspended</span>
+                      ) : agent.serverStatus.ready ? (
+                        <span className="text-emerald-600">Ready</span>
+                      ) : (
+                        <span className="text-stone-500">Not Ready</span>
+                      )}
+                    </dd>
+                  </div>
+                  <div className="col-span-2">
+                    <SuspendResumeButton
+                      namespace={agent.namespace}
+                      name={agent.name}
+                      suspended={agent.serverStatus.suspended}
+                      onSuccess={() => refetch()}
+                    />
                   </div>
                 </div>
               ) : (

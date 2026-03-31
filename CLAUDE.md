@@ -714,6 +714,25 @@ serverConfig:
 Both PVCs are garbage-collected via OwnerReference when the Agent is deleted.
 Sessions and workspace can be configured independently (one, both, or neither).
 
+**Suspend/Resume:**
+
+Server-mode Agents can be suspended to save compute resources. Suspending scales the
+Deployment to 0 replicas while retaining PVCs and Service. Resuming scales back to 1.
+
+```yaml
+serverConfig:
+  port: 4096
+  suspend: true    # scales deployment to 0 replicas
+```
+
+When suspended:
+- `status.serverStatus.suspended` is `true`, `ready` is `false`
+- Tasks targeting a suspended agent enter `Queued` phase with reason `AgentSuspended`
+- PVCs and Service are retained (no data loss, DNS stable)
+- Resume by setting `suspend: false` — queued tasks automatically start
+
+API endpoints: `POST /api/v1/namespaces/{ns}/agents/{name}/suspend` and `.../resume`
+
 **Task Stop:**
 
 Running Tasks can be stopped by setting the `kubeopencode.io/stop=true` annotation:

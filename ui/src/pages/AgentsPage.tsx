@@ -127,11 +127,13 @@ function AgentsPage() {
                       <p className="text-xs text-stone-400 mt-0.5 font-mono">{agent.namespace}</p>
                     </div>
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium border ${
-                      agent.mode === 'Server'
-                        ? 'bg-violet-50 text-violet-600 border-violet-200'
-                        : 'bg-stone-50 text-stone-400 border-stone-200'
+                      agent.serverStatus?.suspended
+                        ? 'bg-amber-50 text-amber-600 border-amber-200'
+                        : agent.mode === 'Server'
+                          ? 'bg-violet-50 text-violet-600 border-violet-200'
+                          : 'bg-stone-50 text-stone-400 border-stone-200'
                     }`}>
-                      {agent.mode}
+                      {agent.serverStatus?.suspended ? 'Suspended' : agent.mode}
                     </span>
                   </div>
 

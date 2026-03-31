@@ -85,6 +85,18 @@ type ServerConfig struct {
 	// When set, session data (and optionally workspace files) survive pod restarts.
 	// +optional
 	Persistence *PersistenceConfig `json:"persistence,omitempty"`
+
+	// Suspend scales the server deployment to 0 replicas when true.
+	// The server is stopped but PVCs and Service are retained, so the agent
+	// can be resumed without data loss. Tasks targeting a suspended agent
+	// enter Queued phase until the agent is resumed.
+	//
+	// This is useful for saving compute resources during off-hours while
+	// preserving session history and workspace state via persistent storage.
+	//
+	// Similar to Kubernetes CronJob's spec.suspend field.
+	// +optional
+	Suspend bool `json:"suspend,omitempty"`
 }
 
 // PersistenceConfig controls persistent storage for Server-mode Agents.
@@ -138,6 +150,12 @@ type ServerStatus struct {
 	// Ready indicates whether the server deployment is ready to accept tasks.
 	// +optional
 	Ready bool `json:"ready,omitempty"`
+
+	// Suspended indicates the server is intentionally scaled to 0 replicas.
+	// When true, Ready is always false. Use this to distinguish "suspended"
+	// from "not ready due to an issue".
+	// +optional
+	Suspended bool `json:"suspended,omitempty"`
 }
 
 // ProxyConfig configures HTTP/HTTPS proxy settings for all containers in generated Pods.

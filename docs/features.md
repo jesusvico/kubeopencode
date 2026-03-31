@@ -651,6 +651,40 @@ spec:
   If the Agent's git ref changes, the existing checkout is not automatically updated.
 - Sessions and workspace can be configured independently (one, both, or neither)
 
+## Suspend/Resume (Server Mode)
+
+Server-mode Agents can be suspended to save compute resources during off-hours. Suspending scales the Deployment to 0 replicas while retaining PVCs and Service — the agent can be resumed instantly without data loss.
+
+### Configuration
+
+```yaml
+serverConfig:
+  port: 4096
+  suspend: true    # scales deployment to 0 replicas
+  persistence:
+    sessions:
+      size: "1Gi"
+    workspace:
+      size: "20Gi"
+```
+
+### How It Works
+
+- **Suspend**: Sets `spec.serverConfig.suspend: true`, Deployment scales to 0 replicas
+- **Resume**: Sets `suspend: false`, Deployment scales back to 1 replica
+- PVCs and Service are retained during suspension (no data loss, DNS stable)
+- Tasks targeting a suspended agent enter `Queued` phase with reason `AgentSuspended`
+- Queued tasks automatically start when the agent is resumed
+
+### API
+
+- `POST /api/v1/namespaces/{ns}/agents/{name}/suspend`
+- `POST /api/v1/namespaces/{ns}/agents/{name}/resume`
+
+### UI
+
+The Agent detail page shows a **Suspend/Resume** button for Server-mode agents, and the agents list shows a "Suspended" badge.
+
 ## Next Steps
 
 - [Getting Started](getting-started.md) - Installation and basic usage

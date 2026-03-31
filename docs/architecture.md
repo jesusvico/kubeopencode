@@ -815,6 +815,7 @@ Task Controller
 |-------|------|---------|-------------|
 | `port` | int32 | 4096 | Port for OpenCode server |
 | `persistence` | PersistenceConfig | nil | Persistent storage configuration |
+| `suspend` | bool | false | Scale deployment to 0 replicas (suspend/resume) |
 
 **PersistenceConfig Fields:**
 

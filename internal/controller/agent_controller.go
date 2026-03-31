@@ -29,6 +29,9 @@ const (
 	// In the Pod-based approach, this is based on Deployment readiness rather than HTTP health checks.
 	AgentConditionServerHealthy = "ServerHealthy"
 
+	// AgentConditionSuspended indicates whether the Agent server is intentionally suspended.
+	AgentConditionSuspended = "Suspended"
+
 	// DefaultServerReconcileInterval is how often to reconcile Server-mode Agents.
 	DefaultServerReconcileInterval = 30 * time.Second
 )
@@ -136,6 +139,12 @@ func (r *AgentReconciler) reconcileDeployment(ctx context.Context, agent *kubeop
 		return nil
 	}
 
+	// Scale to 0 replicas when suspended
+	if agent.Spec.ServerConfig.Suspend {
+		replicas := int32(0)
+		desired.Spec.Replicas = &replicas
+	}
+
 	// Set owner reference for garbage collection
 	if err := controllerutil.SetControllerReference(agent, desired, r.Scheme); err != nil {
 		return fmt.Errorf("failed to set owner reference: %w", err)
@@ -220,28 +229,37 @@ func (r *AgentReconciler) updateAgentStatus(ctx context.Context, agent *kubeopen
 	agent.Status.ServerStatus.ServiceName = ServerServiceName(agent.Name)
 	agent.Status.ServerStatus.URL = ServerURL(agent.Name, agent.Namespace, GetServerPort(agent))
 
-	var deployment appsv1.Deployment
-	err := r.Get(ctx, client.ObjectKey{Namespace: agent.Namespace, Name: deploymentName}, &deployment)
-	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return fmt.Errorf("failed to get Deployment: %w", err)
-		}
+	// Handle suspended state
+	if agent.Spec.ServerConfig.Suspend {
+		agent.Status.ServerStatus.Suspended = true
 		agent.Status.ServerStatus.Ready = false
+		setAgentCondition(agent, AgentConditionSuspended, metav1.ConditionTrue, "UserRequested", "Agent is suspended")
+		setAgentCondition(agent, AgentConditionServerReady, metav1.ConditionFalse, "Suspended", "Server is suspended")
 	} else {
-		agent.Status.ServerStatus.Ready = deployment.Status.ReadyReplicas > 0
+		agent.Status.ServerStatus.Suspended = false
+		setAgentCondition(agent, AgentConditionSuspended, metav1.ConditionFalse, "Active", "Agent is active")
 
-		// Server health is determined by Deployment readiness
-		// The Deployment's readiness probe checks /session/status endpoint
-		if agent.Status.ServerStatus.Ready {
-			setAgentCondition(agent, AgentConditionServerHealthy, metav1.ConditionTrue, "DeploymentHealthy", "Server deployment is ready")
+		var deployment appsv1.Deployment
+		err := r.Get(ctx, client.ObjectKey{Namespace: agent.Namespace, Name: deploymentName}, &deployment)
+		if err != nil {
+			if !apierrors.IsNotFound(err) {
+				return fmt.Errorf("failed to get Deployment: %w", err)
+			}
+			agent.Status.ServerStatus.Ready = false
+		} else {
+			agent.Status.ServerStatus.Ready = deployment.Status.ReadyReplicas > 0
+
+			if agent.Status.ServerStatus.Ready {
+				setAgentCondition(agent, AgentConditionServerHealthy, metav1.ConditionTrue, "DeploymentHealthy", "Server deployment is ready")
+			}
 		}
-	}
 
-	// Set ServerReady condition
-	if agent.Status.ServerStatus.Ready {
-		setAgentCondition(agent, AgentConditionServerReady, metav1.ConditionTrue, "DeploymentReady", "Server deployment is ready")
-	} else {
-		setAgentCondition(agent, AgentConditionServerReady, metav1.ConditionFalse, "DeploymentNotReady", "Server deployment is not ready")
+		// Set ServerReady condition
+		if agent.Status.ServerStatus.Ready {
+			setAgentCondition(agent, AgentConditionServerReady, metav1.ConditionTrue, "DeploymentReady", "Server deployment is ready")
+		} else {
+			setAgentCondition(agent, AgentConditionServerReady, metav1.ConditionFalse, "DeploymentNotReady", "Server deployment is not ready")
+		}
 	}
 
 	// Update observed generation
