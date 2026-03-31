@@ -254,13 +254,17 @@ func (h *AgentHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "Name is required", "")
 		return
 	}
-	if req.WorkspaceDir == "" {
-		writeError(w, http.StatusBadRequest, "WorkspaceDir is required", "")
-		return
-	}
-	if req.ServiceAccountName == "" {
-		writeError(w, http.StatusBadRequest, "ServiceAccountName is required", "")
-		return
+	// workspaceDir and serviceAccountName are required only when no template is referenced,
+	// since they can be inherited from the template.
+	if req.TemplateRef == nil {
+		if req.WorkspaceDir == "" {
+			writeError(w, http.StatusBadRequest, "WorkspaceDir is required when no template is specified", "")
+			return
+		}
+		if req.ServiceAccountName == "" {
+			writeError(w, http.StatusBadRequest, "ServiceAccountName is required when no template is specified", "")
+			return
+		}
 	}
 
 	agent := &kubeopenv1alpha1.Agent{

@@ -2238,6 +2238,7 @@ spec:
                   The ServiceAccount must exist in the Agent's namespace (where Pods run).
                   Users are responsible for creating the ServiceAccount and appropriate RBAC bindings
                   based on what permissions their agent needs.
+                  When templateRef is set, this field is inherited from the template if not specified.
                 type: string
               templateRef:
                 description: |-
@@ -2256,12 +2257,9 @@ spec:
                   WorkspaceDir specifies the working directory inside the agent container.
                   This is where task.md and context files are mounted.
                   The agent image must support the WORKSPACE_DIR environment variable.
-                minLength: 1
+                  When templateRef is set, this field is inherited from the template if not specified.
                 pattern: ^/.*
                 type: string
-            required:
-            - serviceAccountName
-            - workspaceDir
             type: object
           status:
             description: Status represents the current status of the Agent

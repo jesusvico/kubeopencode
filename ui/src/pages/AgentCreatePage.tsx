@@ -13,8 +13,8 @@ function AgentCreatePage() {
   const { namespace: globalNamespace, isAllNamespaces } = useNamespace();
   const [name, setName] = useState('');
   const [profile, setProfile] = useState('');
-  const [workspaceDir, setWorkspaceDir] = useState('/workspace');
-  const [serviceAccountName, setServiceAccountName] = useState('default');
+  const [workspaceDir, setWorkspaceDir] = useState('');
+  const [serviceAccountName, setServiceAccountName] = useState('');
   // selectedTemplate stores "namespace/name" or "" for no template
   const [selectedTemplate, setSelectedTemplate] = useState('');
 
@@ -37,12 +37,28 @@ function AgentCreatePage() {
     return isAllNamespaces ? 'default' : globalNamespace;
   }, [selectedTemplate, globalNamespace, isAllNamespaces]);
 
+  // Fetch template details when selected to show inherited values
+  const templateParts = selectedTemplate.split('/');
+  const { data: templateDetail } = useQuery({
+    queryKey: ['agent-template', templateParts[0], templateParts[1]],
+    queryFn: () => api.getAgentTemplate(templateParts[0], templateParts[1]),
+    enabled: templateParts.length === 2 && !!templateParts[0] && !!templateParts[1],
+  });
+
+  const hasTemplate = !!selectedTemplate && !!templateDetail;
+
   useEffect(() => {
     const templateParam = searchParams.get('template');
     if (templateParam) {
       setSelectedTemplate(templateParam);
     }
   }, [searchParams]);
+
+  // When template changes, clear overrides so inherited values show through
+  useEffect(() => {
+    setWorkspaceDir('');
+    setServiceAccountName('');
+  }, [selectedTemplate]);
 
   const createMutation = useMutation({
     mutationFn: (agent: CreateAgentRequest) => api.createAgent(namespace, agent),
@@ -58,11 +74,7 @@ function AgentCreatePage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const agent: CreateAgentRequest = {
-      name,
-      workspaceDir,
-      serviceAccountName,
-    };
+    const agent: CreateAgentRequest = { name };
 
     if (profile) {
       agent.profile = profile;
@@ -75,10 +87,22 @@ function AgentCreatePage() {
       }
     }
 
+    // Only send workspaceDir/serviceAccountName if user explicitly set them (override)
+    if (workspaceDir) {
+      agent.workspaceDir = workspaceDir;
+    }
+    if (serviceAccountName) {
+      agent.serviceAccountName = serviceAccountName;
+    }
+
     createMutation.mutate(agent);
   };
 
-  const isValid = name && workspaceDir && serviceAccountName;
+  // Validation: name is always required; workspaceDir and serviceAccountName
+  // are required only when no template provides them
+  const effectiveWorkspaceDir = workspaceDir || templateDetail?.workspaceDir || '';
+  const effectiveServiceAccount = serviceAccountName || templateDetail?.serviceAccountName || '';
+  const isValid = name && (hasTemplate || (effectiveWorkspaceDir && effectiveServiceAccount));
 
   return (
     <div className="animate-fade-in">
@@ -117,9 +141,7 @@ function AgentCreatePage() {
             <p className="mt-1.5 text-xs text-stone-400">
               {allTemplates.length === 0
                 ? 'No templates available.'
-                : selectedTemplate
-                  ? `Agent will be created in namespace "${namespace}".`
-                  : `Inherit configuration from an AgentTemplate. Agent will be created in namespace "${namespace}".`}
+                : `Agent will be created in namespace "${namespace}".`}
             </p>
           </div>
 
@@ -148,14 +170,17 @@ function AgentCreatePage() {
                 className="block text-[11px] font-display font-medium text-stone-400 uppercase tracking-wider mb-1.5"
               >
                 Workspace Directory
+                {hasTemplate && (
+                  <span className="normal-case tracking-normal text-stone-300"> (inherited from template)</span>
+                )}
               </label>
               <input
                 type="text"
                 id="workspaceDir"
                 value={workspaceDir}
                 onChange={(e) => setWorkspaceDir(e.target.value)}
-                required
-                placeholder="/workspace"
+                required={!hasTemplate}
+                placeholder={hasTemplate && templateDetail?.workspaceDir ? templateDetail.workspaceDir : '/workspace'}
                 className="block w-full rounded-lg border-stone-200 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm text-stone-700 font-mono placeholder:text-stone-300 placeholder:font-body"
               />
             </div>
@@ -166,14 +191,17 @@ function AgentCreatePage() {
                 className="block text-[11px] font-display font-medium text-stone-400 uppercase tracking-wider mb-1.5"
               >
                 Service Account
+                {hasTemplate && (
+                  <span className="normal-case tracking-normal text-stone-300"> (inherited from template)</span>
+                )}
               </label>
               <input
                 type="text"
                 id="serviceAccountName"
                 value={serviceAccountName}
                 onChange={(e) => setServiceAccountName(e.target.value)}
-                required
-                placeholder="default"
+                required={!hasTemplate}
+                placeholder={hasTemplate && templateDetail?.serviceAccountName ? templateDetail.serviceAccountName : 'default'}
                 className="block w-full rounded-lg border-stone-200 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm text-stone-700 font-mono placeholder:text-stone-300 placeholder:font-body"
               />
             </div>

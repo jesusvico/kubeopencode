@@ -63,8 +63,8 @@ export interface CreateAgentRequest {
   name: string;
   profile?: string;
   templateRef?: AgentReference;
-  workspaceDir: string;
-  serviceAccountName: string;
+  workspaceDir?: string;
+  serviceAccountName?: string;
 }
 
 export interface ContextItem {

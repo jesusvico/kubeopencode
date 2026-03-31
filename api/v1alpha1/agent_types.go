@@ -235,10 +235,10 @@ type AgentSpec struct {
 	// WorkspaceDir specifies the working directory inside the agent container.
 	// This is where task.md and context files are mounted.
 	// The agent image must support the WORKSPACE_DIR environment variable.
-	// +kubebuilder:validation:Required
+	// When templateRef is set, this field is inherited from the template if not specified.
+	// +optional
 	// +kubebuilder:validation:Pattern=`^/.*`
-	// +kubebuilder:validation:MinLength=1
-	WorkspaceDir string `json:"workspaceDir"`
+	WorkspaceDir string `json:"workspaceDir,omitempty"`
 
 	// Command specifies the entrypoint command for the agent container.
 	// This is optional and overrides the default ENTRYPOINT of the container image.
@@ -310,9 +310,10 @@ type AgentSpec struct {
 	// The ServiceAccount must exist in the Agent's namespace (where Pods run).
 	// Users are responsible for creating the ServiceAccount and appropriate RBAC bindings
 	// based on what permissions their agent needs.
+	// When templateRef is set, this field is inherited from the template if not specified.
 	//
-	// +required
-	ServiceAccountName string `json:"serviceAccountName"`
+	// +optional
+	ServiceAccountName string `json:"serviceAccountName,omitempty"`
 
 	// MaxConcurrentTasks limits the number of Tasks that can run concurrently
 	// using this Agent. When the limit is reached, new Tasks will enter Queued

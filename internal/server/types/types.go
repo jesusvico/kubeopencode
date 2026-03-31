@@ -44,8 +44,8 @@ type CreateAgentRequest struct {
 	Name               string          `json:"name"`
 	Profile            string          `json:"profile,omitempty"`
 	TemplateRef        *AgentReference `json:"templateRef,omitempty"`
-	WorkspaceDir       string          `json:"workspaceDir"`
-	ServiceAccountName string          `json:"serviceAccountName"`
+	WorkspaceDir       string          `json:"workspaceDir,omitempty"`
+	ServiceAccountName string          `json:"serviceAccountName,omitempty"`
 }
 
 // TaskResponse represents a task in API responses

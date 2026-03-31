@@ -32,6 +32,9 @@ func ResolveAgentConfigFromTemplate(ctx context.Context, reader client.Reader, a
 	}
 
 	merged := MergeAgentWithTemplate(agent, tmpl)
+	if merged.workspaceDir == "" {
+		return agentConfig{}, fmt.Errorf("agent %q has empty workspaceDir after template merge", agent.Name)
+	}
 	if merged.serviceAccountName == "" {
 		return agentConfig{}, fmt.Errorf("agent %q has empty serviceAccountName after template merge", agent.Name)
 	}
@@ -50,9 +53,9 @@ func MergeAgentWithTemplate(agent *kubeopenv1alpha1.Agent, tmpl *kubeopenv1alpha
 		executorImage: defaultString(agent.Spec.ExecutorImage, defaultString(tmpl.Spec.ExecutorImage, DefaultExecutorImage)),
 		attachImage:   defaultString(agent.Spec.AttachImage, defaultString(tmpl.Spec.AttachImage, DefaultAttachImage)),
 
-		// Required fields on both Agent and AgentTemplate; agent always wins
-		workspaceDir:       agent.Spec.WorkspaceDir,
-		serviceAccountName: agent.Spec.ServiceAccountName,
+		// Agent wins if non-empty; otherwise inherited from template
+		workspaceDir:       defaultString(agent.Spec.WorkspaceDir, tmpl.Spec.WorkspaceDir),
+		serviceAccountName: defaultString(agent.Spec.ServiceAccountName, tmpl.Spec.ServiceAccountName),
 
 		maxConcurrentTasks: firstNonNilInt32(agent.Spec.MaxConcurrentTasks, tmpl.Spec.MaxConcurrentTasks),
 		quota:              firstNonNilQuota(agent.Spec.Quota, tmpl.Spec.Quota),
