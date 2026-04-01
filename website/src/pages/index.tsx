@@ -80,8 +80,7 @@ function HomepageHeader() {
         </Heading>
         <p className="hero__subtitle">{siteConfig.tagline}</p>
         <p className={styles.heroDescription}>
-          Run AI coding agents as live services on Kubernetes. Deploy persistent agents
-          your team can interact with anytime &mdash; or run batch tasks at scale.
+          Run AI agents on Kubernetes.
           Built on OpenCode, designed for teams and enterprise.
         </p>
         <div className={styles.buttons}>
@@ -156,36 +155,16 @@ function QuickExample() {
   );
 }
 
-function StarCallToAction() {
-  return (
-    <section className={styles.starCta}>
-      <div className="container text--center">
-        <Heading as="h2">Like this project?</Heading>
-        <p>
-          If you find KubeOpenCode useful, please give us a star on GitHub.
-          It helps others discover the project and motivates us to keep improving it.
-        </p>
-        <Link
-          className="button button--primary button--lg"
-          href={`https://github.com/${GITHUB_REPO}`}>
-          Star on GitHub
-        </Link>
-      </div>
-    </section>
-  );
-}
-
 export default function Home(): ReactNode {
   return (
     <Layout
       title="Kubernetes-native Agent Platform for Teams and Enterprise"
-      description="Deploy, manage, and govern AI coding agents at scale on Kubernetes. Built on OpenCode, designed for teams and enterprise.">
+      description="Run AI agents on Kubernetes. Built on OpenCode, designed for teams and enterprise.">
       <AlphaBanner />
       <HomepageHeader />
       <main>
         <HomepageFeatures />
         <QuickExample />
-        <StarCallToAction />
       </main>
     </Layout>
   );

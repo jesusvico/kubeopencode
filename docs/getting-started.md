@@ -2,7 +2,7 @@
 
 ## Quick Start (AI-Assisted)
 
-The fastest way to get started — let your AI coding agent set up everything for you:
+The fastest way to get started — let your AI agent set up everything for you:
 
 ```bash
 git clone https://github.com/kubeopencode/kubeopencode.git

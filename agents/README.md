@@ -20,7 +20,7 @@ This design separates the AI tool (OpenCode) from the execution environment, all
 │  Init Container: opencode-init                               │
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │  Image: kubeopencode-agent-opencode                   │  │
-│  │  - Contains OpenCode CLI (AI coding agent)            │  │
+│  │  - Contains OpenCode CLI (AI agent)            │  │
 │  │  - Copies opencode binary to /tools volume            │  │
 │  └───────────────────────────────────────────────────────┘  │
 │                           │                                  │
@@ -50,7 +50,7 @@ This design separates the AI tool (OpenCode) from the execution environment, all
 
 | Image | Purpose | Container Type |
 |-------|---------|----------------|
-| `opencode` | OpenCode CLI (AI coding agent) | Init Container |
+| `opencode` | OpenCode CLI (AI agent) | Init Container |
 | `devbox` | Universal development environment | Worker (Executor) |
 | `attach` | Lightweight image for Server mode `--attach` | Worker (Server mode) |
 
