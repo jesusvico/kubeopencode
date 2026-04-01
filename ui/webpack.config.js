@@ -1,5 +1,6 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 const webpack = require('webpack');
 
 const isMockApi = process.env.MOCK_API === 'true';
@@ -39,6 +40,11 @@ module.exports = {
     new HtmlWebpackPlugin({
       template: './src/index.html',
       favicon: false,
+    }),
+    new CopyWebpackPlugin({
+      patterns: [
+        { from: 'public', globOptions: { ignore: ['**/mockServiceWorker.js'] } },
+      ],
     }),
     new webpack.DefinePlugin({
       MOCK_API: JSON.stringify(isMockApi),
