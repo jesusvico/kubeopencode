@@ -12,7 +12,24 @@ KubeOpenCode is in **early alpha** (v0.0.x). It is **not recommended for product
 
 This guide gets you running KubeOpenCode on a local Kind cluster in minutes. The default setup uses the free `opencode/big-pickle` model — **no API key required**.
 
-## Prerequisites
+## Quick Start (AI-Assisted)
+
+The fastest way to get started — let your AI agent set up everything for you:
+
+```bash
+git clone https://github.com/kubeopencode/kubeopencode.git
+cd kubeopencode
+```
+
+Then tell your AI agent (Claude Code, Cursor, Windsurf, etc.):
+
+> Follow `deploy/local-dev/local-development.md` to set up a local development environment for me.
+
+The agent will handle Kind cluster creation, image builds, Helm installation, and test resource deployment automatically.
+
+## Manual Setup
+
+### Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/)
 - [Kind](https://kind.sigs.k8s.io/) (`brew install kind` on macOS)
@@ -20,7 +37,7 @@ This guide gets you running KubeOpenCode on a local Kind cluster in minutes. The
 - [Helm](https://helm.sh/) 3.8+
 - [Go](https://go.dev/) 1.25+
 
-## Step 1: Clone and Create Cluster
+### Step 1: Clone and Create Cluster
 
 ```bash
 # Clone the repository
@@ -31,7 +48,7 @@ cd kubeopencode
 kind create cluster --name kubeopencode
 ```
 
-## Step 2: Build and Load Images
+### Step 2: Build and Load Images
 
 ```bash
 # Build the controller image
@@ -47,7 +64,7 @@ for img in opencode devbox attach; do
 done
 ```
 
-## Step 3: Deploy
+### Step 3: Deploy
 
 ```bash
 # Install with Helm (UI enabled)
@@ -72,7 +89,7 @@ kubectl get pods -n kubeopencode-system
 kubectl get agent -n test
 ```
 
-## Step 4: Access the Web UI
+### Step 4: Access the Web UI
 
 ```bash
 kubectl port-forward -n kubeopencode-system svc/kubeopencode-server 2746:2746
@@ -84,7 +101,7 @@ Open [http://localhost:2746](http://localhost:2746). The UI provides:
 - **Task Create** — Submit new Tasks to Agents
 - **Agent Browser** — View Agents and AgentTemplates
 
-## Step 5: Try It Out
+### Step 5: Try It Out
 
 ### Submit a Task
 
