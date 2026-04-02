@@ -242,6 +242,8 @@ func agentToResponse(agent *kubeopenv1alpha1.Agent) types.AgentResponse {
 
 	resp.Credentials = credentialsToInfo(agent.Spec.Credentials)
 	resp.Contexts = contextsToItems(agent.Spec.Contexts)
+	resp.SkillsCount = len(agent.Spec.Skills)
+	resp.Skills = skillsToInfo(agent.Spec.Skills)
 
 	return resp
 }

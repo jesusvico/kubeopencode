@@ -257,6 +257,10 @@ export const mockAgents: Agent[] = [
       { name: 'source', type: 'Git', mountPath: '/workspace/source', description: 'Main application repository' },
       { name: 'api-docs', type: 'URL', description: 'Internal API documentation' },
     ],
+    skillsCount: 1,
+    skills: [
+      { name: 'official-skills', git: { repository: 'https://github.com/anthropics/skills.git', ref: 'main', path: 'skills/', names: ['frontend-design', 'webapp-testing'] } },
+    ],
     labels: { team: 'platform', tier: 'core', 'kubeopencode.io/agent-template': 'standard-base' },
   },
   {
@@ -269,6 +273,7 @@ export const mockAgents: Agent[] = [
     workspaceDir: '/workspace',
     contextsCount: 1,
     credentialsCount: 3,
+    skillsCount: 0,
     maxConcurrentTasks: 2,
     createdAt: '2026-02-10T00:00:00Z',
     serverStatus: {
@@ -298,6 +303,7 @@ export const mockAgents: Agent[] = [
     workspaceDir: '/workspace',
     contextsCount: 2,
     credentialsCount: 1,
+    skillsCount: 0,
     maxConcurrentTasks: 1,
     quota: { maxTaskStarts: 10, windowSeconds: 3600 },
     createdAt: '2026-02-15T00:00:00Z',
@@ -328,6 +334,7 @@ export const mockAgents: Agent[] = [
     workspaceDir: '/workspace',
     contextsCount: 1,
     credentialsCount: 1,
+    skillsCount: 0,
     maxConcurrentTasks: 3,
     createdAt: '2026-03-01T00:00:00Z',
     serverStatus: {
@@ -360,6 +367,7 @@ export const mockAgents: Agent[] = [
     workspaceDir: '/workspace',
     contextsCount: 0,
     credentialsCount: 1,
+    skillsCount: 0,
     createdAt: '2026-03-01T00:00:00Z',
     serverStatus: {
       deploymentName: 'pod-agent-server',
@@ -383,6 +391,7 @@ export const mockAgents: Agent[] = [
     workspaceDir: '/workspace',
     contextsCount: 0,
     credentialsCount: 1,
+    skillsCount: 0,
     createdAt: '2026-02-20T00:00:00Z',
     serverStatus: {
       deploymentName: 'suspended-agent-server',
@@ -410,6 +419,7 @@ export const mockAgents: Agent[] = [
     workspaceDir: '/workspace',
     contextsCount: 5,
     credentialsCount: 3,
+    skillsCount: 0,
     maxConcurrentTasks: 8,
     createdAt: '2026-01-10T00:00:00Z',
     serverStatus: {
@@ -443,6 +453,7 @@ export const mockAgents: Agent[] = [
     workspaceDir: '/workspace',
     contextsCount: 2,
     credentialsCount: 2,
+    skillsCount: 0,
     maxConcurrentTasks: 3,
     createdAt: '2026-01-15T00:00:00Z',
     serverStatus: {
@@ -475,6 +486,7 @@ export const mockAgentTemplates: AgentTemplate[] = [
     serviceAccountName: 'kubeopencode-agent',
     contextsCount: 1,
     credentialsCount: 1,
+    skillsCount: 0,
     credentials: [
       { name: 'anthropic-key', secretRef: 'ai-credentials', env: 'ANTHROPIC_API_KEY' },
     ],
@@ -494,6 +506,7 @@ export const mockAgentTemplates: AgentTemplate[] = [
     serviceAccountName: 'kubeopencode-agent',
     contextsCount: 0,
     credentialsCount: 1,
+    skillsCount: 0,
     credentials: [
       { name: 'anthropic-key', secretRef: 'opencode-credentials', env: 'ANTHROPIC_API_KEY' },
     ],
@@ -510,6 +523,7 @@ export const mockAgentTemplates: AgentTemplate[] = [
     serviceAccountName: 'kubeopencode-agent-prod',
     contextsCount: 2,
     credentialsCount: 2,
+    skillsCount: 0,
     credentials: [
       { name: 'anthropic-key', secretRef: 'prod-ai-credentials', env: 'ANTHROPIC_API_KEY' },
       { name: 'github-token', secretRef: 'prod-github-creds', env: 'GITHUB_TOKEN' },

@@ -306,6 +306,56 @@ func TestMergeAgentWithTemplate(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "skills replaced by agent",
+			agent: &kubeopenv1alpha1.Agent{
+				Spec: kubeopenv1alpha1.AgentSpec{
+					WorkspaceDir:       "/workspace",
+					ServiceAccountName: "sa",
+					Skills: []kubeopenv1alpha1.SkillSource{
+						{Name: "agent-skills", Git: &kubeopenv1alpha1.GitSkillSource{Repository: "https://github.com/org/agent-skills.git"}},
+					},
+				},
+			},
+			template: &kubeopenv1alpha1.AgentTemplate{
+				Spec: kubeopenv1alpha1.AgentTemplateSpec{
+					WorkspaceDir:       "/workspace",
+					ServiceAccountName: "sa",
+					Skills: []kubeopenv1alpha1.SkillSource{
+						{Name: "tmpl-skills-1", Git: &kubeopenv1alpha1.GitSkillSource{Repository: "https://github.com/org/tmpl1.git"}},
+						{Name: "tmpl-skills-2", Git: &kubeopenv1alpha1.GitSkillSource{Repository: "https://github.com/org/tmpl2.git"}},
+					},
+				},
+			},
+			check: func(t *testing.T, cfg agentConfig) {
+				if len(cfg.skills) != 1 || cfg.skills[0].Name != "agent-skills" {
+					t.Errorf("expected agent skills to replace template, got %v", cfg.skills)
+				}
+			},
+		},
+		{
+			name: "nil agent skills inherits template skills",
+			agent: &kubeopenv1alpha1.Agent{
+				Spec: kubeopenv1alpha1.AgentSpec{
+					WorkspaceDir:       "/workspace",
+					ServiceAccountName: "sa",
+				},
+			},
+			template: &kubeopenv1alpha1.AgentTemplate{
+				Spec: kubeopenv1alpha1.AgentTemplateSpec{
+					WorkspaceDir:       "/workspace",
+					ServiceAccountName: "sa",
+					Skills: []kubeopenv1alpha1.SkillSource{
+						{Name: "tmpl-skills", Git: &kubeopenv1alpha1.GitSkillSource{Repository: "https://github.com/org/tmpl.git"}},
+					},
+				},
+			},
+			check: func(t *testing.T, cfg agentConfig) {
+				if len(cfg.skills) != 1 || cfg.skills[0].Name != "tmpl-skills" {
+					t.Errorf("expected template skills inherited, got %v", cfg.skills)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {

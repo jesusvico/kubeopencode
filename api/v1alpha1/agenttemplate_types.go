@@ -73,6 +73,11 @@ type AgentTemplateSpec struct {
 	// +optional
 	Contexts []ContextItem `json:"contexts,omitempty"`
 
+	// Skills defines external skill sources for Agents derived from this template.
+	// Skills are SKILL.md files in Git repositories. Agents can override this list.
+	// +optional
+	Skills []SkillSource `json:"skills,omitempty"`
+
 	// Config provides OpenCode configuration as a JSON string.
 	// +optional
 	Config *string `json:"config,omitempty"`

@@ -269,11 +269,13 @@ func templateToResponse(tmpl *kubeopenv1alpha1.AgentTemplate) types.AgentTemplat
 		ServiceAccountName: tmpl.Spec.ServiceAccountName,
 		ContextsCount:      len(tmpl.Spec.Contexts),
 		CredentialsCount:   len(tmpl.Spec.Credentials),
+		SkillsCount:        len(tmpl.Spec.Skills),
 		CreatedAt:          tmpl.CreationTimestamp.Time,
 		Labels:             tmpl.Labels,
 		Conditions:         conditionsToResponse(tmpl.Status.Conditions),
 		Credentials:        credentialsToInfo(tmpl.Spec.Credentials),
 		Contexts:           contextsToItems(tmpl.Spec.Contexts),
+		Skills:             skillsToInfo(tmpl.Spec.Skills),
 	}
 }
 

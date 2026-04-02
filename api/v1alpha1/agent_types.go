@@ -202,6 +202,19 @@ type AgentSpec struct {
 	// +optional
 	Contexts []ContextItem `json:"contexts,omitempty"`
 
+	// Skills defines external skill sources for the Agent.
+	// Skills are SKILL.md files organized as one-folder-per-skill in Git repositories.
+	// The controller clones skill repositories and auto-injects skills.paths into
+	// the OpenCode configuration so skills are discovered automatically.
+	//
+	// Skills are semantically different from Contexts:
+	//   - Contexts provide knowledge ("what the agent knows")
+	//   - Skills provide capabilities ("what the agent can do")
+	//
+	// When templateRef is set, Agent skills replace template skills (same as contexts).
+	// +optional
+	Skills []SkillSource `json:"skills,omitempty"`
+
 	// Config provides OpenCode configuration as a JSON string.
 	// This configuration is written to /tools/opencode.json and the OPENCODE_CONFIG
 	// environment variable is set to point to this file.

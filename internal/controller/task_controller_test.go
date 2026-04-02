@@ -1628,6 +1628,175 @@ var _ = Describe("TaskController", func() {
 		})
 	})
 
+	Context("When creating a Task with Agent that has Skills", func() {
+		It("Should create git-init containers for skills and inject skills.paths into config", func() {
+			agentName := "agent-with-skills"
+			taskName := "test-task-with-skills"
+			description := "Test task with skills"
+
+			// Create Agent with Skills (and no explicit config)
+			agent := &kubeopenv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      agentName,
+					Namespace: taskNamespace,
+				},
+				Spec: kubeopenv1alpha1.AgentSpec{
+					AgentImage:         "test-opencode:latest",
+					ExecutorImage:      "test-executor:latest",
+					WorkspaceDir:       "/workspace",
+					ServiceAccountName: "default",
+					Skills: []kubeopenv1alpha1.SkillSource{
+						{
+							Name: "my-skills",
+							Git: &kubeopenv1alpha1.GitSkillSource{
+								Repository: "https://github.com/anthropics/skills.git",
+								Ref:        "main",
+								Path:       "skills/",
+								Names:      []string{"frontend-design", "webapp-testing"},
+							},
+						},
+					},
+				},
+			}
+			createReadyAgent(ctx, agent)
+
+			// Create Task referencing the Agent
+			task := &kubeopenv1alpha1.Task{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      taskName,
+					Namespace: taskNamespace,
+				},
+				Spec: kubeopenv1alpha1.TaskSpec{
+					Description: &description,
+					AgentRef:    &kubeopenv1alpha1.AgentReference{Name: agentName},
+				},
+			}
+			Expect(k8sClient.Create(ctx, task)).Should(Succeed())
+
+			By("Checking Pod is created")
+			podName := fmt.Sprintf("%s-pod", taskName)
+			podLookupKey := types.NamespacedName{Name: podName, Namespace: taskNamespace}
+			createdPod := &corev1.Pod{}
+			Eventually(func() bool {
+				return k8sClient.Get(ctx, podLookupKey, createdPod) == nil
+			}, timeout, interval).Should(BeTrue())
+
+			By("Verifying git-init container exists for skills")
+			var foundGitInit bool
+			for _, initC := range createdPod.Spec.InitContainers {
+				if initC.Name == "git-init-0" {
+					foundGitInit = true
+					// Verify it clones the skills repo
+					var hasRepoEnv bool
+					for _, env := range initC.Env {
+						if env.Name == "GIT_REPO" && env.Value == "https://github.com/anthropics/skills.git" {
+							hasRepoEnv = true
+							break
+						}
+					}
+					Expect(hasRepoEnv).Should(BeTrue(), "git-init should have GIT_REPO for skills repo")
+					break
+				}
+			}
+			Expect(foundGitInit).Should(BeTrue(), "git-init container for skills should exist")
+
+			By("Verifying OPENCODE_CONFIG env var is set (auto-created for skills)")
+			agentContainer := createdPod.Spec.Containers[0]
+			var foundOpenCodeConfigEnv bool
+			for _, env := range agentContainer.Env {
+				if env.Name == OpenCodeConfigEnvVar {
+					Expect(env.Value).Should(Equal(OpenCodeConfigPath))
+					foundOpenCodeConfigEnv = true
+					break
+				}
+			}
+			Expect(foundOpenCodeConfigEnv).Should(BeTrue(), "OPENCODE_CONFIG env var should be auto-set for skills")
+
+			By("Verifying ConfigMap contains injected skills.paths config")
+			configMapName := taskName + ContextConfigMapSuffix
+			configMapLookupKey := types.NamespacedName{Name: configMapName, Namespace: taskNamespace}
+			createdConfigMap := &corev1.ConfigMap{}
+			Eventually(func() bool {
+				return k8sClient.Get(ctx, configMapLookupKey, createdConfigMap) == nil
+			}, timeout, interval).Should(BeTrue())
+			expectedConfigKey := sanitizeConfigMapKey(OpenCodeConfigPath)
+			Expect(createdConfigMap.Data).Should(HaveKey(expectedConfigKey))
+			configContent := createdConfigMap.Data[expectedConfigKey]
+			Expect(configContent).Should(ContainSubstring("skills"))
+			Expect(configContent).Should(ContainSubstring("/skills/my-skills/frontend-design"))
+			Expect(configContent).Should(ContainSubstring("/skills/my-skills/webapp-testing"))
+
+			By("Cleaning up")
+			Expect(k8sClient.Delete(ctx, task)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, agent)).Should(Succeed())
+		})
+
+		It("Should merge skills.paths with existing config", func() {
+			agentName := "agent-skills-with-config"
+			taskName := "test-task-skills-config"
+			description := "Test task with skills and config"
+
+			configJSON := `{"model":"claude","permission":{"allow":["*"]}}`
+
+			// Create Agent with both Skills and Config
+			agent := &kubeopenv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      agentName,
+					Namespace: taskNamespace,
+				},
+				Spec: kubeopenv1alpha1.AgentSpec{
+					AgentImage:         "test-opencode:latest",
+					ExecutorImage:      "test-executor:latest",
+					WorkspaceDir:       "/workspace",
+					ServiceAccountName: "default",
+					Config:             &configJSON,
+					Skills: []kubeopenv1alpha1.SkillSource{
+						{
+							Name: "tools",
+							Git: &kubeopenv1alpha1.GitSkillSource{
+								Repository: "https://github.com/org/tools.git",
+							},
+						},
+					},
+				},
+			}
+			createReadyAgent(ctx, agent)
+
+			// Create Task
+			task := &kubeopenv1alpha1.Task{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      taskName,
+					Namespace: taskNamespace,
+				},
+				Spec: kubeopenv1alpha1.TaskSpec{
+					Description: &description,
+					AgentRef:    &kubeopenv1alpha1.AgentReference{Name: agentName},
+				},
+			}
+			Expect(k8sClient.Create(ctx, task)).Should(Succeed())
+
+			By("Checking ConfigMap has merged config")
+			configMapName := taskName + ContextConfigMapSuffix
+			configMapLookupKey := types.NamespacedName{Name: configMapName, Namespace: taskNamespace}
+			createdConfigMap := &corev1.ConfigMap{}
+			Eventually(func() bool {
+				return k8sClient.Get(ctx, configMapLookupKey, createdConfigMap) == nil
+			}, timeout, interval).Should(BeTrue())
+			expectedConfigKey := sanitizeConfigMapKey(OpenCodeConfigPath)
+			Expect(createdConfigMap.Data).Should(HaveKey(expectedConfigKey))
+			configContent := createdConfigMap.Data[expectedConfigKey]
+			// Original config fields preserved
+			Expect(configContent).Should(ContainSubstring(`"model"`))
+			Expect(configContent).Should(ContainSubstring(`"permission"`))
+			// Skills.paths injected
+			Expect(configContent).Should(ContainSubstring("/skills/tools"))
+
+			By("Cleaning up")
+			Expect(k8sClient.Delete(ctx, task)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, agent)).Should(Succeed())
+		})
+	})
+
 	Context("Task Cleanup", func() {
 		It("Should delete Task after TTL expires", func() {
 			taskName := "test-task-ttl-cleanup"

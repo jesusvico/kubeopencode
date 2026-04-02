@@ -122,6 +122,18 @@ export interface ServerStatusInfo {
   idleSince?: string;
 }
 
+export interface SkillGitInfo {
+  repository: string;
+  ref?: string;
+  path?: string;
+  names?: string[];
+}
+
+export interface SkillInfo {
+  name: string;
+  git?: SkillGitInfo;
+}
+
 export interface Agent {
   name: string;
   namespace: string;
@@ -133,10 +145,12 @@ export interface Agent {
   serviceAccountName?: string;
   contextsCount: number;
   credentialsCount: number;
+  skillsCount: number;
   maxConcurrentTasks?: number;
   quota?: QuotaInfo;
   credentials?: CredentialInfo[];
   contexts?: ContextItem[];
+  skills?: SkillInfo[];
   createdAt: string;
   labels?: Record<string, string>;
   standby?: StandbyInfo;
@@ -153,8 +167,10 @@ export interface AgentTemplate {
   serviceAccountName?: string;
   contextsCount: number;
   credentialsCount: number;
+  skillsCount: number;
   credentials?: CredentialInfo[];
   contexts?: ContextItem[];
+  skills?: SkillInfo[];
   createdAt: string;
   labels?: Record<string, string>;
   conditions?: Condition[];

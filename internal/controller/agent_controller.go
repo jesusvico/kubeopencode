@@ -301,25 +301,42 @@ func (r *AgentReconciler) updateAgentStatus(ctx context.Context, agent *kubeopen
 // processAgentContexts resolves Agent-level contexts into a ConfigMap, file mounts, dir mounts, and git mounts.
 // This is similar to TaskReconciler.processAllContexts but only handles Agent.contexts (no Task description).
 func (r *AgentReconciler) processAgentContexts(ctx context.Context, agent *kubeopenv1alpha1.Agent, cfg agentConfig) (*corev1.ConfigMap, []fileMount, []dirMount, []gitMount, error) {
-	if len(cfg.contexts) == 0 {
+	if len(cfg.contexts) == 0 && len(cfg.skills) == 0 && (cfg.config == nil || *cfg.config == "") {
 		return nil, nil, nil, nil, nil
 	}
 
+	var resolved []resolvedContext
+	var dirMounts []dirMount
+	var gitMounts []gitMount
+	configMapData := make(map[string]string)
+	var fileMounts []fileMount
+
 	// Resolve all context items
-	resolved, dirMounts, gitMounts, err := processContextItems(r.Client, ctx, cfg.contexts, agent.Namespace, cfg.workspaceDir)
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to resolve Agent contexts: %w", err)
+	if len(cfg.contexts) > 0 {
+		ctxResolved, ctxDirMounts, ctxGitMounts, err := processContextItems(r.Client, ctx, cfg.contexts, agent.Namespace, cfg.workspaceDir)
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("failed to resolve Agent contexts: %w", err)
+		}
+		resolved = append(resolved, ctxResolved...)
+		dirMounts = append(dirMounts, ctxDirMounts...)
+		gitMounts = append(gitMounts, ctxGitMounts...)
 	}
 
 	// Build ConfigMap data from resolved contexts
-	configMapData, fileMounts := buildContextConfigMapData(resolved, cfg.workspaceDir)
-
-	// Add OpenCode config to ConfigMap if provided
-	if cfg.config != nil && *cfg.config != "" {
-		configMapKey := sanitizeConfigMapKey(OpenCodeConfigPath)
-		configMapData[configMapKey] = *cfg.config
-		fileMounts = append(fileMounts, fileMount{filePath: OpenCodeConfigPath})
+	if len(resolved) > 0 {
+		ctxData, ctxFileMounts := buildContextConfigMapData(resolved, cfg.workspaceDir)
+		for k, v := range ctxData {
+			configMapData[k] = v
+		}
+		fileMounts = append(fileMounts, ctxFileMounts...)
 	}
+
+	// Process skills and inject config (skills.paths + user config → opencode.json)
+	skillGitMounts, fileMounts, err := processSkillsAndInjectConfig(cfg.skills, cfg.config, configMapData, fileMounts)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	gitMounts = append(gitMounts, skillGitMounts...)
 
 	// Validate mount path conflicts
 	if err := validateMountPathConflicts(fileMounts, dirMounts, gitMounts); err != nil {

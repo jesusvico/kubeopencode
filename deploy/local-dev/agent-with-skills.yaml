@@ -1,0 +1,39 @@
+# Copyright Contributors to the KubeOpenCode project
+# Agent with external skills from Git repositories
+#
+# Demonstrates how to reference skills from public and private Git repos.
+# Skills are SKILL.md files organized as one-folder-per-skill.
+# The controller clones repos and auto-injects skills.paths into OpenCode config.
+#
+apiVersion: kubeopencode.io/v1alpha1
+kind: Agent
+metadata:
+  name: skilled-agent
+spec:
+  templateRef:
+    name: local-dev-base
+  profile: "Agent with external skills from Git repositories"
+  executorImage: quay.io/kubeopencode/kubeopencode-agent-devbox:latest
+  workspaceDir: /workspace
+  serviceAccountName: kubeopencode-agent
+
+  # Skills: reference external SKILL.md files from Git repositories
+  skills:
+  # Example 1: Select specific skills from a public repository
+  - name: anthropic-skills
+    git:
+      repository: https://github.com/anthropics/skills.git
+      ref: main
+      path: skills/
+      names:
+      - frontend-design
+      - webapp-testing
+      - skill-creator
+
+  # Example 2: Include all skills from a repository directory
+  # - name: team-skills
+  #   git:
+  #     repository: https://github.com/my-org/ai-skills.git
+  #     path: engineering/
+  #     secretRef:
+  #       name: github-pat

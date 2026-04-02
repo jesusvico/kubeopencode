@@ -265,6 +265,7 @@ export const handlers = [
       workspaceDir: (body.workspaceDir as string) || '/workspace',
       contextsCount: 0,
       credentialsCount: 0,
+      skillsCount: 0,
       createdAt: new Date().toISOString(),
       serverStatus: {
         deploymentName: `${agentName}-server`,

@@ -62,6 +62,7 @@ func MergeAgentWithTemplate(agent *kubeopenv1alpha1.Agent, tmpl *kubeopenv1alpha
 
 		command:          firstNonNilSlice(agent.Spec.Command, tmpl.Spec.Command),
 		contexts:         firstNonNilContexts(agent.Spec.Contexts, tmpl.Spec.Contexts),
+		skills:           firstNonNilSkills(agent.Spec.Skills, tmpl.Spec.Skills),
 		config:           firstNonNilPtr(agent.Spec.Config, tmpl.Spec.Config),
 		credentials:      firstNonNilCreds(agent.Spec.Credentials, tmpl.Spec.Credentials),
 		podSpec:          firstNonNilPodSpec(agent.Spec.PodSpec, tmpl.Spec.PodSpec),
@@ -129,6 +130,13 @@ func firstNonNilProxy(a, b *kubeopenv1alpha1.ProxyConfig) *kubeopenv1alpha1.Prox
 }
 
 func firstNonNilIPS(a, b []corev1.LocalObjectReference) []corev1.LocalObjectReference {
+	if a != nil {
+		return a
+	}
+	return b
+}
+
+func firstNonNilSkills(a, b []kubeopenv1alpha1.SkillSource) []kubeopenv1alpha1.SkillSource {
 	if a != nil {
 		return a
 	}

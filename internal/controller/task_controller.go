@@ -785,18 +785,20 @@ func (r *TaskReconciler) processAllContexts(ctx context.Context, task *kubeopenv
 		fileMounts = append(fileMounts, fileMount{filePath: contextFilePath})
 	}
 
-	// Add OpenCode config to ConfigMap if provided
+	// Validate JSON syntax of user-provided config before processing
 	if cfg.config != nil && *cfg.config != "" {
-		// Validate JSON syntax
 		var jsonCheck interface{}
 		if err := json.Unmarshal([]byte(*cfg.config), &jsonCheck); err != nil {
 			return nil, nil, nil, nil, fmt.Errorf("invalid JSON in Agent config: %w", err)
 		}
-		// Use sanitizeConfigMapKey to ensure consistent key naming with fileMount
-		configMapKey := sanitizeConfigMapKey(OpenCodeConfigPath)
-		configMapData[configMapKey] = *cfg.config
-		fileMounts = append(fileMounts, fileMount{filePath: OpenCodeConfigPath})
 	}
+
+	// Process skills and inject config (skills.paths + user config → opencode.json)
+	skillGitMounts, fileMounts, err := processSkillsAndInjectConfig(cfg.skills, cfg.config, configMapData, fileMounts)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	gitMounts = append(gitMounts, skillGitMounts...)
 
 	// Create ConfigMap if there's any content
 	// ConfigMap is created in Agent's namespace (where Pod runs)

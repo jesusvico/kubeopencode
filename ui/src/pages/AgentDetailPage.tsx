@@ -494,6 +494,45 @@ function AgentDetailPage() {
             </div>
           )}
 
+          {/* Skills */}
+          {agent.skills && agent.skills.length > 0 && (
+            <div>
+              <h3 className="text-xs font-display font-semibold text-stone-500 uppercase tracking-wider mb-3">
+                Skills ({agent.skills.length})
+              </h3>
+              <div className="space-y-2">
+                {agent.skills.map((skill, idx) => (
+                  <div key={idx} className="bg-stone-50 rounded-lg p-3 border border-stone-100">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm text-stone-800">
+                        {skill.name}
+                      </span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-violet-50 text-violet-600 border border-violet-200 font-medium">
+                        Git
+                      </span>
+                    </div>
+                    {skill.git && (
+                      <p className="mt-1 text-[11px] text-stone-400 font-mono truncate">
+                        {skill.git.repository}
+                        {skill.git.ref && skill.git.ref !== 'HEAD' ? `@${skill.git.ref}` : ''}
+                        {skill.git.path ? ` / ${skill.git.path}` : ''}
+                      </p>
+                    )}
+                    {skill.git?.names && skill.git.names.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {skill.git.names.map((name, i) => (
+                          <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-500 border border-violet-100">
+                            {name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Contexts */}
           {agent.contexts && agent.contexts.length > 0 && (
             <div>

@@ -2209,6 +2209,107 @@ spec:
                   based on what permissions their agent needs.
                   When templateRef is set, this field is inherited from the template if not specified.
                 type: string
+              skills:
+                description: |-
+                  Skills defines external skill sources for the Agent.
+                  Skills are SKILL.md files organized as one-folder-per-skill in Git repositories.
+                  The controller clones skill repositories and auto-injects skills.paths into
+                  the OpenCode configuration so skills are discovered automatically.
+
+                  Skills are semantically different from Contexts:
+                    - Contexts provide knowledge ("what the agent knows")
+                    - Skills provide capabilities ("what the agent can do")
+
+                  When templateRef is set, Agent skills replace template skills (same as contexts).
+                items:
+                  description: "SkillSource defines a source of skills for an agent.\nEach
+                    SkillSource references a Git repository containing SKILL.md files\norganized
+                    as one-folder-per-skill.\n\nThe controller clones the repository,
+                    optionally filters specific skill directories,\nand auto-injects
+                    the mount paths into OpenCode's skills.paths configuration.\nOpenCode
+                    then discovers and loads the skills automatically.\n\nExample:\n\n\tskills:\n\t-
+                    name: official-skills\n\t  git:\n\t    repository: https://github.com/anthropics/skills.git\n\t
+                    \   ref: main\n\t    path: skills/\n\t    names:\n\t    - frontend-design\n\t
+                    \   - webapp-testing"
+                  properties:
+                    git:
+                      description: Git specifies a Git repository containing skills.
+                      properties:
+                        depth:
+                          default: 1
+                          description: |-
+                            Depth specifies the clone depth for shallow cloning.
+                            1 means shallow clone (fastest, default), 0 means full clone.
+                          type: integer
+                        names:
+                          description: |-
+                            Names selects specific skill directories under Path.
+                            Each name corresponds to a skill folder name containing SKILL.md.
+                            If omitted, ALL skills found under Path are included.
+
+                            Example: ["frontend-design", "webapp-testing"] selects only those two skills
+                            from the repository, ignoring all others.
+                          items:
+                            type: string
+                          type: array
+                        path:
+                          description: |-
+                            Path is the base directory within the repository where skills are located.
+                            For example, "skills/" for the anthropics/skills repo structure,
+                            or "engineering/" for domain-organized repos.
+                            If omitted, the repository root is used as the base directory.
+                          type: string
+                        recurseSubmodules:
+                          description: RecurseSubmodules enables recursive cloning
+                            of Git submodules.
+                          type: boolean
+                        ref:
+                          default: HEAD
+                          description: |-
+                            Ref is the Git reference to checkout (branch, tag, or commit SHA).
+                            Defaults to "HEAD" if not specified.
+                            Example: "main", "v2.0.0", "abc123"
+                          type: string
+                        repository:
+                          description: |-
+                            Repository is the Git repository URL.
+                            Supported protocols: https://, http://, git@ (SSH).
+                            Example: "https://github.com/anthropics/skills.git"
+                          type: string
+                        secretRef:
+                          description: |-
+                            SecretRef references a Secret containing Git credentials.
+                            The Secret should contain one of:
+                              - "username" + "password": For HTTPS token-based auth (password can be a PAT)
+                              - "ssh-privatekey": For SSH key-based auth
+                            If not specified, anonymous clone is attempted.
+                            Reuses the same Secret format as context Git.
+                          properties:
+                            name:
+                              description: Name of the Secret containing Git credentials.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                      required:
+                      - repository
+                      type: object
+                    name:
+                      description: |-
+                        Name is a unique identifier for this skill source.
+                        Used for logging, mount path generation (/skills/{name}), and deduplication.
+                        Must be a valid DNS label (lowercase alphanumeric with hyphens).
+                      maxLength: 63
+                      minLength: 1
+                      pattern: ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$
+                      type: string
+                  required:
+                  - name
+                  type: object
+                  x-kubernetes-validations:
+                  - message: git source is required
+                    rule: has(self.git)
+                type: array
               standby:
                 description: |-
                   Standby configures automatic suspend/resume lifecycle management.

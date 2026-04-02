@@ -25,6 +25,7 @@ type agentConfig struct {
 	command            []string // Command for agent container (optional, has default)
 	workspaceDir       string
 	contexts           []kubeopenv1alpha1.ContextItem
+	skills             []kubeopenv1alpha1.SkillSource
 	config             *string // OpenCode config JSON string
 	credentials        []kubeopenv1alpha1.Credential
 	podSpec            *kubeopenv1alpha1.AgentPodSpec
@@ -49,6 +50,7 @@ func ResolveAgentConfig(agent *kubeopenv1alpha1.Agent) agentConfig {
 		command:            agent.Spec.Command,
 		workspaceDir:       agent.Spec.WorkspaceDir,
 		contexts:           agent.Spec.Contexts,
+		skills:             agent.Spec.Skills,
 		config:             agent.Spec.Config,
 		credentials:        agent.Spec.Credentials,
 		podSpec:            agent.Spec.PodSpec,
@@ -78,6 +80,7 @@ func ResolveTemplateToConfig(tmpl *kubeopenv1alpha1.AgentTemplate) agentConfig {
 		command:            tmpl.Spec.Command,
 		workspaceDir:       tmpl.Spec.WorkspaceDir,
 		contexts:           tmpl.Spec.Contexts,
+		skills:             tmpl.Spec.Skills,
 		config:             tmpl.Spec.Config,
 		credentials:        tmpl.Spec.Credentials,
 		podSpec:            tmpl.Spec.PodSpec,
@@ -759,8 +762,9 @@ func buildPod(task *kubeopenv1alpha1.Task, podName string, cfg agentConfig, cont
 		corev1.EnvVar{Name: "WORKSPACE_DIR", Value: cfg.workspaceDir},
 	)
 
-	// If OpenCode config is provided, set OPENCODE_CONFIG env var
-	if cfg.config != nil && *cfg.config != "" {
+	// If OpenCode config is provided or skills are configured, set OPENCODE_CONFIG env var.
+	// Skills require the config file because skills.paths is injected into it.
+	if (cfg.config != nil && *cfg.config != "") || len(cfg.skills) > 0 {
 		envVars = append(envVars, corev1.EnvVar{
 			Name:  OpenCodeConfigEnvVar,
 			Value: OpenCodeConfigPath,

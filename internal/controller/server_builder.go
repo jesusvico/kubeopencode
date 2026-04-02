@@ -187,8 +187,8 @@ func BuildServerDeployment(agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, 
 		})
 	}
 
-	// Add OpenCode config if provided
-	if agentCfg.config != nil {
+	// Add OpenCode config if provided, or if skills are configured (skills.paths is injected into config)
+	if agentCfg.config != nil || len(agentCfg.skills) > 0 {
 		envVars = append(envVars, corev1.EnvVar{
 			Name:  OpenCodeConfigEnvVar,
 			Value: OpenCodeConfigPath,

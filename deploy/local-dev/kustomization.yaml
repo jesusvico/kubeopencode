@@ -22,3 +22,4 @@ resources:
   - agenttemplate.yaml
   - agent-persistent.yaml
   - agent-dev.yaml
+  - agent-with-skills.yaml

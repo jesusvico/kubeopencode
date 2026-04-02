@@ -133,6 +133,20 @@ type QuotaInfo struct {
 	WindowSeconds int32 `json:"windowSeconds,omitempty"`
 }
 
+// SkillInfo represents a skill source in API responses
+type SkillInfo struct {
+	Name string        `json:"name"`
+	Git  *GitSkillInfo `json:"git,omitempty"`
+}
+
+// GitSkillInfo represents Git source details for a skill
+type GitSkillInfo struct {
+	Repository string   `json:"repository"`
+	Ref        string   `json:"ref,omitempty"`
+	Path       string   `json:"path,omitempty"`
+	Names      []string `json:"names,omitempty"`
+}
+
 // AgentResponse represents an agent in API responses
 type AgentResponse struct {
 	Name               string            `json:"name"`
@@ -145,10 +159,12 @@ type AgentResponse struct {
 	ServiceAccountName string            `json:"serviceAccountName,omitempty"`
 	ContextsCount      int               `json:"contextsCount"`
 	CredentialsCount   int               `json:"credentialsCount"`
+	SkillsCount        int               `json:"skillsCount"`
 	MaxConcurrentTasks *int32            `json:"maxConcurrentTasks,omitempty"`
 	Quota              *QuotaInfo        `json:"quota,omitempty"`
 	Credentials        []CredentialInfo  `json:"credentials,omitempty"`
 	Contexts           []ContextItem     `json:"contexts,omitempty"`
+	Skills             []SkillInfo       `json:"skills,omitempty"`
 	CreatedAt          time.Time         `json:"createdAt"`
 	Labels             map[string]string `json:"labels,omitempty"`
 	Standby            *StandbyInfo      `json:"standby,omitempty"`
@@ -166,8 +182,10 @@ type AgentTemplateResponse struct {
 	ServiceAccountName string            `json:"serviceAccountName,omitempty"`
 	ContextsCount      int               `json:"contextsCount"`
 	CredentialsCount   int               `json:"credentialsCount"`
+	SkillsCount        int               `json:"skillsCount"`
 	Credentials        []CredentialInfo  `json:"credentials,omitempty"`
 	Contexts           []ContextItem     `json:"contexts,omitempty"`
+	Skills             []SkillInfo       `json:"skills,omitempty"`
 	CreatedAt          time.Time         `json:"createdAt"`
 	Labels             map[string]string `json:"labels,omitempty"`
 	Conditions         []Condition       `json:"conditions,omitempty"`

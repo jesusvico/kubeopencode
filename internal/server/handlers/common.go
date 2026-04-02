@@ -170,6 +170,27 @@ func contextsToItems(ctxs []kubeopenv1alpha1.ContextItem) []types.ContextItem {
 	return result
 }
 
+// skillsToInfo converts CRD skill sources to API response format.
+func skillsToInfo(skills []kubeopenv1alpha1.SkillSource) []types.SkillInfo {
+	if len(skills) == 0 {
+		return nil
+	}
+	result := make([]types.SkillInfo, 0, len(skills))
+	for _, s := range skills {
+		info := types.SkillInfo{Name: s.Name}
+		if s.Git != nil {
+			info.Git = &types.GitSkillInfo{
+				Repository: s.Git.Repository,
+				Ref:        s.Git.Ref,
+				Path:       s.Git.Path,
+				Names:      s.Git.Names,
+			}
+		}
+		result = append(result, info)
+	}
+	return result
+}
+
 // conditionsToResponse converts CRD conditions to API response format.
 func conditionsToResponse(conds []metav1.Condition) []types.Condition {
 	if len(conds) == 0 {
