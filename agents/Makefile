@@ -18,7 +18,7 @@ OPENCODE_VERSION ?= 1.1.60
 IMG_REGISTRY ?= quay.io
 IMG_ORG ?= kubeopencode
 IMG_NAME ?= kubeopencode-agent-$(AGENT)
-VERSION ?= 0.0.15
+VERSION ?= 0.0.16
 IMG ?= $(IMG_REGISTRY)/$(IMG_ORG)/$(IMG_NAME):$(VERSION)
 
 # Base image configuration
