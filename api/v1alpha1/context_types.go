@@ -2,6 +2,10 @@
 
 package v1alpha1
 
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
 // ContextType defines the type of context source
 // +kubebuilder:validation:Enum=Text;ConfigMap;Git;Runtime;URL
 type ContextType string
@@ -91,6 +95,47 @@ type GitContext struct {
 	// If not specified, anonymous clone is attempted.
 	// +optional
 	SecretRef *GitSecretReference `json:"secretRef,omitempty"`
+
+	// Sync configures automatic synchronization of the Git repository.
+	// Only effective for Agent contexts (ignored for Task contexts).
+	// When enabled, the repository content is kept up-to-date with the remote.
+	// +optional
+	Sync *GitSync `json:"sync,omitempty"`
+}
+
+// GitSyncPolicy defines how Git sync changes are applied.
+// +kubebuilder:validation:Enum=HotReload;Rollout
+type GitSyncPolicy string
+
+const (
+	// GitSyncPolicyHotReload updates files in-place without restarting the Pod.
+	// A git-sync sidecar periodically pulls changes into the shared volume.
+	GitSyncPolicyHotReload GitSyncPolicy = "HotReload"
+
+	// GitSyncPolicyRollout triggers a Deployment rolling update when changes are detected.
+	// The Agent controller periodically checks the remote ref and triggers rollout on change.
+	GitSyncPolicyRollout GitSyncPolicy = "Rollout"
+)
+
+// GitSync configures automatic synchronization of a Git repository.
+type GitSync struct {
+	// Enabled enables periodic sync of the Git repository.
+	// When true, a sidecar container (HotReload) or controller polling (Rollout)
+	// is used to keep the Git content up-to-date.
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Interval is the polling interval for checking remote changes.
+	// Default: "5m".
+	// +optional
+	Interval metav1.Duration `json:"interval,omitempty"`
+
+	// Policy determines how changes are applied.
+	// HotReload (default): sidecar pulls changes in-place, no Pod restart.
+	// Rollout: controller detects changes and triggers Deployment rolling update.
+	// +optional
+	// +kubebuilder:default=HotReload
+	Policy GitSyncPolicy `json:"policy,omitempty"`
 }
 
 // GitSecretReference references a Secret for Git authentication.

@@ -6,6 +6,7 @@ package controller
 
 import (
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -99,7 +100,7 @@ func TestBuildServerDeployment_WithCredentials(t *testing.T) {
 		},
 	}
 
-	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil)
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
 
 	if deployment == nil {
 		t.Fatal("BuildServerDeployment returned nil")
@@ -177,7 +178,7 @@ func TestBuildServerDeployment_WithEntireSecretCredential(t *testing.T) {
 		},
 	}
 
-	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil)
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
 
 	if deployment == nil {
 		t.Fatal("BuildServerDeployment returned nil")
@@ -215,7 +216,7 @@ func TestBuildServerDeployment_WithHOMEAndSHELLEnvVars(t *testing.T) {
 		workspaceDir:  "/workspace",
 	}
 
-	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil)
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
 
 	if deployment == nil {
 		t.Fatal("BuildServerDeployment returned nil")
@@ -283,7 +284,7 @@ func TestBuildServerDeployment_WithTextContext(t *testing.T) {
 		{filePath: "/workspace/.kubeopencode/context.md"},
 	}
 
-	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), contextConfigMap, fileMounts, nil, nil)
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), contextConfigMap, fileMounts, nil, nil, nil)
 
 	if deployment == nil {
 		t.Fatal("BuildServerDeployment returned nil")
@@ -356,7 +357,7 @@ func TestBuildServerDeployment_WithConfigMapContext(t *testing.T) {
 		},
 	}
 
-	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, dirMounts, nil)
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, dirMounts, nil, nil)
 
 	if deployment == nil {
 		t.Fatal("BuildServerDeployment returned nil")
@@ -430,7 +431,7 @@ func TestBuildServerDeployment_WithGitContext(t *testing.T) {
 		},
 	}
 
-	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, gitMounts)
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, gitMounts, nil)
 
 	if deployment == nil {
 		t.Fatal("BuildServerDeployment returned nil")
@@ -505,7 +506,7 @@ func TestBuildServerDeployment_SkipsOPENCODE_PERMISSIONWhenConfigHasPermission(t
 		config:        &configWithPermission,
 	}
 
-	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil)
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
 
 	if deployment == nil {
 		t.Fatal("BuildServerDeployment returned nil")
@@ -540,7 +541,7 @@ func TestBuildServerDeployment_SetsOPENCODE_PERMISSIONWhenConfigHasNoPermission(
 		config:        &configWithoutPermission,
 	}
 
-	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil)
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
 
 	if deployment == nil {
 		t.Fatal("BuildServerDeployment returned nil")
@@ -585,7 +586,7 @@ func TestBuildServerDeploymentWithProxy(t *testing.T) {
 		},
 	}
 
-	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil)
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
 
 	if deployment == nil {
 		t.Fatal("BuildServerDeployment returned nil")
@@ -670,7 +671,7 @@ func TestBuildServerDeploymentWithImagePullSecrets(t *testing.T) {
 				imagePullSecrets: tt.imagePullSecrets,
 			}
 
-			deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil)
+			deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
 
 			if deployment == nil {
 				t.Fatal("BuildServerDeployment returned nil")
@@ -716,7 +717,7 @@ func TestBuildServerDeploymentWithSecurityContext(t *testing.T) {
 			workspaceDir:  "/workspace",
 		}
 
-		deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil)
+		deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
 
 		if deployment == nil {
 			t.Fatal("BuildServerDeployment returned nil")
@@ -768,7 +769,7 @@ func TestBuildServerDeploymentWithSecurityContext(t *testing.T) {
 			},
 		}
 
-		deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil)
+		deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
 
 		if deployment == nil {
 			t.Fatal("BuildServerDeployment returned nil")
@@ -818,7 +819,7 @@ func TestBuildServerDeploymentWithCABundle(t *testing.T) {
 		},
 	}
 
-	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil)
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
 
 	if deployment == nil {
 		t.Fatal("BuildServerDeployment returned nil")
@@ -1046,7 +1047,7 @@ func TestBuildServerDeployment_WithSessionPersistence(t *testing.T) {
 		workspaceDir:  "/workspace",
 	}
 
-	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil)
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
 	if deployment == nil {
 		t.Fatal("BuildServerDeployment returned nil")
 	}
@@ -1114,7 +1115,7 @@ func TestBuildServerDeployment_WithoutSessionPersistence(t *testing.T) {
 		workspaceDir:  "/workspace",
 	}
 
-	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil)
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
 	if deployment == nil {
 		t.Fatal("BuildServerDeployment returned nil")
 	}
@@ -1256,7 +1257,7 @@ func TestBuildServerDeployment_WithWorkspacePersistence(t *testing.T) {
 		workspaceDir:  "/workspace",
 	}
 
-	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil)
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
 	if deployment == nil {
 		t.Fatal("BuildServerDeployment returned nil")
 	}
@@ -1292,7 +1293,7 @@ func TestBuildServerDeployment_SuspendedAgentStillBuildsDeployment(t *testing.T)
 		workspaceDir:  "/workspace",
 	}
 
-	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil)
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
 	if deployment == nil {
 		t.Fatal("BuildServerDeployment should return non-nil even when suspended")
 	}
@@ -1315,7 +1316,7 @@ func TestBuildServerDeployment_WithoutWorkspacePersistence(t *testing.T) {
 		workspaceDir:  "/workspace",
 	}
 
-	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil)
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
 	if deployment == nil {
 		t.Fatal("BuildServerDeployment returned nil")
 	}
@@ -1333,4 +1334,148 @@ func TestBuildServerDeployment_WithoutWorkspacePersistence(t *testing.T) {
 		}
 	}
 	t.Error("workspace volume not found")
+}
+
+// TestBuildServerDeployment_WithGitSyncHotReload verifies that a git-sync sidecar
+// container is added when a Git context has sync.policy=HotReload.
+func TestBuildServerDeployment_WithGitSyncHotReload(t *testing.T) {
+	agent := &kubeopenv1alpha1.Agent{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "sync-agent",
+			Namespace: "default",
+		},
+		Spec: kubeopenv1alpha1.AgentSpec{Port: 4096},
+	}
+	cfg := agentConfig{
+		executorImage: "test-executor",
+		agentImage:    "test-agent",
+		workspaceDir:  "/workspace",
+	}
+
+	gitMounts := []gitMount{
+		{
+			contextName:  "team-prompts",
+			repository:   "https://github.com/org/prompts.git",
+			ref:          "main",
+			mountPath:    "/workspace/prompts",
+			depth:        1,
+			syncEnabled:  true,
+			syncPolicy:   kubeopenv1alpha1.GitSyncPolicyHotReload,
+			syncInterval: 5 * time.Minute,
+		},
+	}
+
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, gitMounts, nil)
+
+	if deployment == nil {
+		t.Fatal("BuildServerDeployment returned nil")
+	}
+
+	// Should have 2 containers: main server + git-sync sidecar
+	containers := deployment.Spec.Template.Spec.Containers
+	if len(containers) != 2 {
+		t.Fatalf("expected 2 containers, got %d", len(containers))
+	}
+
+	// Verify sidecar name and command
+	sidecar := containers[1]
+	if sidecar.Name != "git-sync-0" {
+		t.Errorf("expected sidecar name 'git-sync-0', got %q", sidecar.Name)
+	}
+	if len(sidecar.Command) < 2 || sidecar.Command[1] != "git-sync" {
+		t.Errorf("expected sidecar command to contain 'git-sync', got %v", sidecar.Command)
+	}
+
+	// Verify GIT_SYNC_INTERVAL env var
+	envMap := make(map[string]string)
+	for _, env := range sidecar.Env {
+		envMap[env.Name] = env.Value
+	}
+	if envMap["GIT_SYNC_INTERVAL"] != "300" {
+		t.Errorf("expected GIT_SYNC_INTERVAL=300, got %q", envMap["GIT_SYNC_INTERVAL"])
+	}
+	if envMap["GIT_REPO"] != "https://github.com/org/prompts.git" {
+		t.Errorf("expected GIT_REPO to be set, got %q", envMap["GIT_REPO"])
+	}
+
+	// Verify sidecar shares the same volume as git-init
+	foundVolume := false
+	for _, vm := range sidecar.VolumeMounts {
+		if vm.Name == "git-context-0" {
+			foundVolume = true
+		}
+	}
+	if !foundVolume {
+		t.Error("sidecar should mount git-context-0 volume")
+	}
+
+	// Verify git-init init container also exists
+	foundGitInit := false
+	for _, ic := range deployment.Spec.Template.Spec.InitContainers {
+		if ic.Name == "git-init-0" {
+			foundGitInit = true
+		}
+	}
+	if !foundGitInit {
+		t.Error("git-init-0 init container should still exist alongside sidecar")
+	}
+}
+
+// TestBuildServerDeployment_WithGitSyncRollout verifies that Rollout policy
+// does NOT add a sidecar but DOES add pod template annotations.
+func TestBuildServerDeployment_WithGitSyncRollout(t *testing.T) {
+	agent := &kubeopenv1alpha1.Agent{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rollout-agent",
+			Namespace: "default",
+		},
+		Spec: kubeopenv1alpha1.AgentSpec{Port: 4096},
+	}
+	cfg := agentConfig{
+		executorImage: "test-executor",
+		agentImage:    "test-agent",
+		workspaceDir:  "/workspace",
+	}
+
+	gitMounts := []gitMount{
+		{
+			contextName:  "agent-config",
+			repository:   "https://github.com/org/config.git",
+			ref:          "main",
+			mountPath:    "/workspace/config",
+			depth:        1,
+			syncEnabled:  true,
+			syncPolicy:   kubeopenv1alpha1.GitSyncPolicyRollout,
+			syncInterval: 10 * time.Minute,
+		},
+	}
+
+	gitHashAnnotations := map[string]string{
+		"kubeopencode.io/git-hash-agent-config": "abc123def456",
+	}
+
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, gitMounts, gitHashAnnotations)
+
+	if deployment == nil {
+		t.Fatal("BuildServerDeployment returned nil")
+	}
+
+	// Rollout policy: should only have 1 container (no sidecar)
+	containers := deployment.Spec.Template.Spec.Containers
+	if len(containers) != 1 {
+		t.Fatalf("expected 1 container (no sidecar for Rollout), got %d", len(containers))
+	}
+
+	// Should have pod template annotation with git hash
+	annotations := deployment.Spec.Template.ObjectMeta.Annotations
+	if annotations == nil {
+		t.Fatal("expected pod template annotations, got nil")
+	}
+	hash, ok := annotations["kubeopencode.io/git-hash-agent-config"]
+	if !ok {
+		t.Error("expected git hash annotation on pod template")
+	}
+	if hash != "abc123def456" {
+		t.Errorf("expected hash 'abc123def456', got %q", hash)
+	}
 }

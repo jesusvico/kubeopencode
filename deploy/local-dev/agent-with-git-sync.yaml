@@ -1,0 +1,36 @@
+# Example: Agent with Git auto-sync
+# This demonstrates both HotReload and Rollout sync policies.
+apiVersion: kubeopencode.io/v1alpha1
+kind: Agent
+metadata:
+  name: git-sync-agent
+  namespace: default
+spec:
+  workspaceDir: /workspace
+  contexts:
+  # HotReload: sidecar pulls changes in-place, no Pod restart.
+  # Best for supplementary files (prompts, docs, reference material).
+  - name: team-prompts
+    type: Git
+    git:
+      repository: https://github.com/org/prompts.git
+      ref: main
+      sync:
+        enabled: true
+        interval: 5m
+        policy: HotReload
+    mountPath: prompts/
+
+  # Rollout: controller detects changes, triggers Deployment rolling update.
+  # Best for workspace root or files loaded once at startup.
+  # Task protection: rollout waits for active Tasks to complete.
+  - name: agent-config
+    type: Git
+    git:
+      repository: https://github.com/org/agent-config.git
+      ref: main
+      sync:
+        enabled: true
+        interval: 10m
+        policy: Rollout
+    mountPath: config/

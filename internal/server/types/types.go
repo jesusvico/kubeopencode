@@ -206,13 +206,21 @@ type StandbyInfo struct {
 
 // ServerStatusInfo represents the status of an Agent's deployment
 type ServerStatusInfo struct {
-	DeploymentName string     `json:"deploymentName,omitempty"`
-	ServiceName    string     `json:"serviceName,omitempty"`
-	URL            string     `json:"url,omitempty"`
-	Ready          bool       `json:"ready"`
-	Port           int32      `json:"port,omitempty"`
-	Suspended      bool       `json:"suspended"`
-	IdleSince      *time.Time `json:"idleSince,omitempty"`
+	DeploymentName  string               `json:"deploymentName,omitempty"`
+	ServiceName     string               `json:"serviceName,omitempty"`
+	URL             string               `json:"url,omitempty"`
+	Ready           bool                 `json:"ready"`
+	Port            int32                `json:"port,omitempty"`
+	Suspended       bool                 `json:"suspended"`
+	IdleSince       *time.Time           `json:"idleSince,omitempty"`
+	GitSyncStatuses []GitSyncStatusInfo  `json:"gitSyncStatuses,omitempty"`
+}
+
+// GitSyncStatusInfo represents the sync state of a Git context
+type GitSyncStatusInfo struct {
+	Name       string     `json:"name"`
+	CommitHash string     `json:"commitHash,omitempty"`
+	LastSynced *time.Time `json:"lastSynced,omitempty"`
 }
 
 // LogEvent represents a Server-Sent Event for log streaming

@@ -55,7 +55,9 @@ Key behaviors:
 
 Key Agent spec fields: `templateRef`, `profile`, `agentImage`, `executorImage`, `attachImage`, `command` (optional, has default), `workspaceDir` (required), `port` (default: 4096), `persistence`, `suspend`, `standby` (automatic suspend/resume lifecycle), `contexts`, `skills` (external SKILL.md sources from Git repos, auto-injects `skills.paths` into OpenCode config), `config` (inline JSON → `/tools/opencode.json`), `credentials`, `caBundle`, `proxy`, `imagePullSecrets`, `podSpec`, `serviceAccountName`, `maxConcurrentTasks`, `quota`.
 
-> See `docs/features.md` for detailed YAML examples of Agent configuration, proxy, credentials, concurrency, quota, and persistence.
+> See `docs/features.md` for detailed YAML examples of Agent configuration, proxy, credentials, concurrency, quota, persistence, and Git auto-sync.
+
+**Git Auto-Sync**: Git contexts support `sync` field with `enabled`, `interval`, and `policy` (HotReload or Rollout). HotReload uses a `kubeopencode git-sync` sidecar for in-place updates. Rollout triggers Deployment rolling update with Task protection (waits for active Tasks, 1h safety timeout). See ADR 0027.
 
 ### AgentTemplate
 
@@ -143,6 +145,17 @@ make e2e-reload     # Rebuild + reload controller image + run e2e-test
 > make local-dev-reload
 > ```
 > This rebuilds the image (with both `:VERSION` and `:latest` tags), loads into Kind, and restarts all deployments. Never manually run `docker-build` + `kind load` for local-dev — use `local-dev-reload` to avoid tag mismatches.
+>
+> **Known issue: Kind image cache stale after reload.** `make local-dev-reload` does `kind load docker-image` + `kubectl rollout restart`, but Kind nodes cache images by digest. If the `:latest` tag digest on the node matches, `kind load` skips the actual load. The restarted Pod then pulls the stale cached image. **Workaround:**
+> ```bash
+> # 1. Tag with a unique name to force Kind to re-tag on the node
+> docker tag quay.io/kubeopencode/kubeopencode:latest quay.io/kubeopencode/kubeopencode:dev-$(date +%s)
+> kind load docker-image quay.io/kubeopencode/kubeopencode:dev-$(date +%s) --name kubeopencode
+> # 2. Patch the deployment to use the new tag
+> kubectl set image deployment/kubeopencode-controller controller=quay.io/kubeopencode/kubeopencode:dev-$(date +%s) -n kubeopencode-system
+> # 3. Verify with: kubectl exec -n kubeopencode-system deployment/kubeopencode-controller -- /kubeopencode version
+> ```
+> Also remember to `kubectl apply -f deploy/crds/` if CRD schemas changed (new fields won't be accepted until CRDs are updated).
 
 ### Docker, Registry, and Deployment
 

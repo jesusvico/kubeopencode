@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -137,6 +138,11 @@ type gitMount struct {
 	depth             int    // Clone depth (1 = shallow, 0 = full)
 	secretName        string // Optional secret name for authentication
 	recurseSubmodules bool   // Whether to recursively clone submodules
+
+	// Sync fields (only effective for Agent contexts)
+	syncEnabled  bool          // Whether auto-sync is enabled
+	syncPolicy   kubeopenv1alpha1.GitSyncPolicy // HotReload or Rollout
+	syncInterval time.Duration // Polling interval
 }
 
 // resolvedContext holds a resolved context with its content and metadata
@@ -353,57 +359,8 @@ func buildGitInitContainer(gm gitMount, volumeName string, index int, sysCfg sys
 		{Name: volumeName, MountPath: DefaultGitRoot},
 	}
 
-	// Add secret environment variables for authentication if specified.
-	// The Secret can contain HTTPS credentials (username + password/PAT),
-	// SSH credentials (ssh-privatekey + optional ssh-known-hosts), or both.
-	// All keys are optional so the same Secret can be used for either method.
 	if gm.secretName != "" {
-		// HTTPS token-based auth
-		envVars = append(envVars,
-			corev1.EnvVar{
-				Name: "GIT_USERNAME",
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{Name: gm.secretName},
-						Key:                  "username",
-						Optional:             boolPtr(true),
-					},
-				},
-			},
-			corev1.EnvVar{
-				Name: "GIT_PASSWORD",
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{Name: gm.secretName},
-						Key:                  "password",
-						Optional:             boolPtr(true),
-					},
-				},
-			},
-		)
-		// SSH key-based auth
-		envVars = append(envVars,
-			corev1.EnvVar{
-				Name: "GIT_SSH_KEY",
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{Name: gm.secretName},
-						Key:                  "ssh-privatekey",
-						Optional:             boolPtr(true),
-					},
-				},
-			},
-			corev1.EnvVar{
-				Name: "GIT_SSH_KNOWN_HOSTS",
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{Name: gm.secretName},
-						Key:                  "ssh-known-hosts",
-						Optional:             boolPtr(true),
-					},
-				},
-			},
-		)
+		envVars = append(envVars, buildGitCredentialEnvVars(gm.secretName)...)
 	}
 
 	return corev1.Container{
@@ -413,6 +370,91 @@ func buildGitInitContainer(gm gitMount, volumeName string, index int, sysCfg sys
 		Command:         []string{"/kubeopencode", "git-init"},
 		Env:             envVars,
 		VolumeMounts:    volumeMounts,
+	}
+}
+
+// buildGitCredentialEnvVars returns env vars that reference a Secret for Git authentication.
+// The Secret can contain HTTPS credentials (username + password/PAT),
+// SSH credentials (ssh-privatekey + optional ssh-known-hosts), or both.
+// All keys are optional so the same Secret can be used for either method.
+func buildGitCredentialEnvVars(secretName string) []corev1.EnvVar {
+	return []corev1.EnvVar{
+		{
+			Name: "GIT_USERNAME",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
+					Key:                  "username",
+					Optional:             boolPtr(true),
+				},
+			},
+		},
+		{
+			Name: "GIT_PASSWORD",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
+					Key:                  "password",
+					Optional:             boolPtr(true),
+				},
+			},
+		},
+		{
+			Name: "GIT_SSH_KEY",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
+					Key:                  "ssh-privatekey",
+					Optional:             boolPtr(true),
+				},
+			},
+		},
+		{
+			Name: "GIT_SSH_KNOWN_HOSTS",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
+					Key:                  "ssh-known-hosts",
+					Optional:             boolPtr(true),
+				},
+			},
+		},
+	}
+}
+
+// buildGitSyncSidecar creates a sidecar container that periodically syncs a Git repository.
+// Used when sync.policy is HotReload to keep content up-to-date without Pod restart.
+func buildGitSyncSidecar(gm gitMount, volumeName string, index int, sysCfg systemConfig) corev1.Container {
+	ref := defaultString(gm.ref, DefaultGitRef)
+	intervalSeconds := int(gm.syncInterval.Seconds())
+	if intervalSeconds <= 0 {
+		intervalSeconds = 300 // default 5 minutes
+	}
+
+	envVars := []corev1.EnvVar{
+		{Name: "GIT_REPO", Value: gm.repository},
+		{Name: "GIT_REF", Value: ref},
+		{Name: "GIT_ROOT", Value: DefaultGitRoot},
+		{Name: "GIT_LINK", Value: DefaultGitLink},
+		{Name: "GIT_SYNC_INTERVAL", Value: strconv.Itoa(intervalSeconds)},
+	}
+
+	volumeMounts := []corev1.VolumeMount{
+		{Name: volumeName, MountPath: DefaultGitRoot},
+	}
+
+	if gm.secretName != "" {
+		envVars = append(envVars, buildGitCredentialEnvVars(gm.secretName)...)
+	}
+
+	return corev1.Container{
+		Name:            fmt.Sprintf("git-sync-%d", index),
+		Image:           sysCfg.systemImage,
+		ImagePullPolicy: sysCfg.systemImagePullPolicy,
+		Command:         []string{"/kubeopencode", "git-sync"},
+		Env:             envVars,
+		VolumeMounts:    volumeMounts,
+		SecurityContext: defaultSecurityContext(),
 	}
 }
 

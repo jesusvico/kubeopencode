@@ -427,6 +427,43 @@ function AgentDetailPage() {
             )}
           </div>
 
+          {/* Git Sync Status */}
+          {agent.serverStatus?.gitSyncStatuses && agent.serverStatus.gitSyncStatuses.length > 0 && (
+            <div>
+              <h3 className="text-xs font-display font-semibold text-stone-500 uppercase tracking-wider mb-3">Git Sync</h3>
+              <div className="space-y-2">
+                {agent.serverStatus.gitSyncStatuses.map((gs, idx) => (
+                  <div key={idx} className="bg-stone-50 rounded-lg p-3 border border-stone-100">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm text-stone-800">{gs.name}</span>
+                      {gs.commitHash && (
+                        <span className="text-[11px] font-mono text-stone-500 bg-stone-100 px-2 py-0.5 rounded">
+                          {gs.commitHash.substring(0, 12)}
+                        </span>
+                      )}
+                    </div>
+                    {gs.lastSynced && (
+                      <p className="text-xs text-stone-400 mt-1">
+                        Last synced: {new Date(gs.lastSynced).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {agent.conditions?.some(c => c.type === 'GitSyncPending' && c.status === 'True') && (
+                <div className="mt-2 bg-amber-50 rounded-lg p-3 border border-amber-200">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                    <p className="text-sm text-amber-700 font-medium">Rollout pending</p>
+                  </div>
+                  <p className="text-xs text-amber-600 mt-1">
+                    {agent.conditions.find(c => c.type === 'GitSyncPending')?.message}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Terminal Panel (ready) */}
           {agent.serverStatus && agent.serverStatus.ready && (
             <TerminalPanel namespace={agent.namespace} agentName={agent.name} />

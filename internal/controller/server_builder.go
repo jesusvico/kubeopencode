@@ -156,7 +156,7 @@ func getServerLabels(agentName string) map[string]string {
 // The Deployment runs OpenCode in serve mode with a single replica.
 // Context parameters (contextConfigMap, fileMounts, dirMounts, gitMounts) enable
 // Agent-level contexts to be loaded via init containers.
-func BuildServerDeployment(agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, sysCfg systemConfig, contextConfigMap *corev1.ConfigMap, ctxFileMounts []fileMount, ctxDirMounts []dirMount, ctxGitMounts []gitMount) *appsv1.Deployment {
+func BuildServerDeployment(agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, sysCfg systemConfig, contextConfigMap *corev1.ConfigMap, ctxFileMounts []fileMount, ctxDirMounts []dirMount, ctxGitMounts []gitMount, gitHashAnnotations map[string]string) *appsv1.Deployment {
 	port := GetServerPort(agent)
 
 	// Build labels for selector and pod template
@@ -526,11 +526,42 @@ func BuildServerDeployment(agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, 
 		}
 	}
 
+	// Build git-sync sidecar containers for HotReload policy
+	var sidecars []corev1.Container
+
+	// Pre-compute CA and proxy env vars once (shared across all sidecars)
+	var sidecarCAMount corev1.VolumeMount
+	var sidecarCAEnv corev1.EnvVar
+	hasCA := agentCfg.caBundle != nil && (agentCfg.caBundle.ConfigMapRef != nil || agentCfg.caBundle.SecretRef != nil)
+	if hasCA {
+		_, sidecarCAMount, sidecarCAEnv = buildCABundleVolumeMountEnv(agentCfg.caBundle)
+	}
+	var proxyEnvs []corev1.EnvVar
+	if agentCfg.proxy != nil {
+		proxyEnvs = buildProxyEnvVars(agentCfg.proxy)
+	}
+
+	for i, gm := range ctxGitMounts {
+		if gm.syncEnabled && gm.syncPolicy == kubeopenv1alpha1.GitSyncPolicyHotReload {
+			sidecar := buildGitSyncSidecar(gm, fmt.Sprintf("git-context-%d", i), i, sysCfg)
+			if hasCA {
+				sidecar.VolumeMounts = append(sidecar.VolumeMounts, sidecarCAMount)
+				sidecar.Env = append(sidecar.Env, sidecarCAEnv)
+			}
+			if len(proxyEnvs) > 0 {
+				sidecar.Env = append(sidecar.Env, proxyEnvs...)
+			}
+			sidecars = append(sidecars, sidecar)
+		}
+	}
+
 	// Build pod template spec
+	containers := []corev1.Container{container}
+	containers = append(containers, sidecars...)
 	podSpec := corev1.PodSpec{
 		ServiceAccountName: agentCfg.serviceAccountName,
 		InitContainers:     initContainers,
-		Containers:         []corev1.Container{container},
+		Containers:         containers,
 		Volumes:            volumes,
 		RestartPolicy:      corev1.RestartPolicyAlways,
 	}
@@ -582,7 +613,8 @@ func BuildServerDeployment(agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, 
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
+					Labels:      labels,
+					Annotations: gitHashAnnotations,
 				},
 				Spec: podSpec,
 			},

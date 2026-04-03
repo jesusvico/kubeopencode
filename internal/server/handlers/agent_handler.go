@@ -238,6 +238,18 @@ func agentToResponse(agent *kubeopenv1alpha1.Agent) types.AgentResponse {
 		t := agent.Status.IdleSince.Time
 		serverStatus.IdleSince = &t
 	}
+	// Populate git sync statuses
+	for _, gs := range agent.Status.GitSyncStatuses {
+		info := types.GitSyncStatusInfo{
+			Name:       gs.Name,
+			CommitHash: gs.CommitHash,
+		}
+		if gs.LastSynced != nil {
+			t := gs.LastSynced.Time
+			info.LastSynced = &t
+		}
+		serverStatus.GitSyncStatuses = append(serverStatus.GitSyncStatuses, info)
+	}
 	resp.ServerStatus = serverStatus
 
 	resp.Credentials = credentialsToInfo(agent.Spec.Credentials)

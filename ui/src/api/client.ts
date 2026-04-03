@@ -112,6 +112,12 @@ export interface QuotaInfo {
   windowSeconds?: number;
 }
 
+export interface GitSyncStatusInfo {
+  name: string;
+  commitHash?: string;
+  lastSynced?: string;
+}
+
 export interface ServerStatusInfo {
   deploymentName?: string;
   serviceName?: string;
@@ -120,6 +126,7 @@ export interface ServerStatusInfo {
   port?: number;
   suspended: boolean;
   idleSince?: string;
+  gitSyncStatuses?: GitSyncStatusInfo[];
 }
 
 export interface SkillGitInfo {

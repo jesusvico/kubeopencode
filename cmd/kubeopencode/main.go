@@ -46,6 +46,7 @@ var rootCmd = &cobra.Command{
 This unified binary provides:
   controller     Start the Kubernetes controller
   git-init       Clone Git repositories for Git Context
+  git-sync       Periodically sync a Git repository (sidecar mode)
   context-init   Copy ConfigMap content to workspace
   url-fetch      Fetch content from remote URLs for URL Context
 

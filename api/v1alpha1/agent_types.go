@@ -426,6 +426,24 @@ type AgentStatus struct {
 	// when to auto-suspend.
 	// +optional
 	IdleSince *metav1.Time `json:"idleSince,omitempty"`
+
+	// GitSyncStatuses tracks the sync state of each Git context with sync enabled.
+	// +optional
+	// +listType=atomic
+	GitSyncStatuses []GitSyncStatus `json:"gitSyncStatuses,omitempty"`
+}
+
+// GitSyncStatus tracks the observed sync state of a single Git context.
+type GitSyncStatus struct {
+	// Name is the context name.
+	Name string `json:"name"`
+
+	// CommitHash is the last observed remote commit hash that has been
+	// successfully applied (either via sidecar pull or deployment rollout).
+	CommitHash string `json:"commitHash,omitempty"`
+
+	// LastSynced is the timestamp of the last successful sync check.
+	LastSynced *metav1.Time `json:"lastSynced,omitempty"`
 }
 
 // StandbyConfig configures automatic suspend/resume lifecycle management for an Agent.

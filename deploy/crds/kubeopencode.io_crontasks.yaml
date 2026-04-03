@@ -261,6 +261,34 @@ spec:
                                   required:
                                   - name
                                   type: object
+                                sync:
+                                  description: |-
+                                    Sync configures automatic synchronization of the Git repository.
+                                    Only effective for Agent contexts (ignored for Task contexts).
+                                    When enabled, the repository content is kept up-to-date with the remote.
+                                  properties:
+                                    enabled:
+                                      description: |-
+                                        Enabled enables periodic sync of the Git repository.
+                                        When true, a sidecar container (HotReload) or controller polling (Rollout)
+                                        is used to keep the Git content up-to-date.
+                                      type: boolean
+                                    interval:
+                                      description: |-
+                                        Interval is the polling interval for checking remote changes.
+                                        Default: "5m".
+                                      type: string
+                                    policy:
+                                      default: HotReload
+                                      description: |-
+                                        Policy determines how changes are applied.
+                                        HotReload (default): sidecar pulls changes in-place, no Pod restart.
+                                        Rollout: controller detects changes and triggers Deployment rolling update.
+                                      enum:
+                                      - HotReload
+                                      - Rollout
+                                      type: string
+                                  type: object
                               required:
                               - repository
                               type: object

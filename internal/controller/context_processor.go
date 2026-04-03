@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -120,7 +121,7 @@ func resolveContextContentFromReader(reader contextReader, ctx context.Context, 
 			secretName = git.SecretRef.Name
 		}
 
-		return "", nil, &gitMount{
+		gm := &gitMount{
 			contextName:       name,
 			repository:        git.Repository,
 			ref:               ref,
@@ -129,7 +130,22 @@ func resolveContextContentFromReader(reader contextReader, ctx context.Context, 
 			depth:             depth,
 			secretName:        secretName,
 			recurseSubmodules: git.RecurseSubmodules,
-		}, nil
+		}
+
+		// Populate sync fields if configured
+		if git.Sync != nil && git.Sync.Enabled {
+			gm.syncEnabled = true
+			gm.syncPolicy = git.Sync.Policy
+			if gm.syncPolicy == "" {
+				gm.syncPolicy = kubeopenv1alpha1.GitSyncPolicyHotReload
+			}
+			gm.syncInterval = git.Sync.Interval.Duration
+			if gm.syncInterval == 0 {
+				gm.syncInterval = 5 * time.Minute
+			}
+		}
+
+		return "", nil, gm, nil
 
 	case kubeopenv1alpha1.ContextTypeRuntime:
 		return RuntimeSystemPrompt, nil, nil, nil

@@ -615,7 +615,7 @@ var _ = Describe("DeploymentBuilder", func() {
 			}
 			sysCfg := systemConfig{}
 
-			deployment := BuildServerDeployment(agent, cfg, sysCfg, nil, nil, nil, nil)
+			deployment := BuildServerDeployment(agent, cfg, sysCfg, nil, nil, nil, nil, nil)
 			Expect(deployment).NotTo(BeNil())
 			Expect(deployment.Name).To(Equal("test-server-agent-server"))
 			Expect(deployment.Namespace).To(Equal("default"))
@@ -641,7 +641,7 @@ var _ = Describe("DeploymentBuilder", func() {
 			}
 			sysCfg := systemConfig{}
 
-			deployment := BuildServerDeployment(agent, cfg, sysCfg, nil, nil, nil, nil)
+			deployment := BuildServerDeployment(agent, cfg, sysCfg, nil, nil, nil, nil, nil)
 			Expect(deployment).NotTo(BeNil())
 			Expect(deployment.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort).To(Equal(DefaultServerPort))
 		})

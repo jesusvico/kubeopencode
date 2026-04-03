@@ -35,15 +35,30 @@ const (
 	// AgentConditionSuspended indicates whether the Agent is intentionally suspended.
 	AgentConditionSuspended = "Suspended"
 
+	// AgentConditionGitSyncPending indicates a Git sync rollout is waiting
+	// for active Tasks to complete before triggering a Deployment update.
+	AgentConditionGitSyncPending = "GitSyncPending"
+
 	// DefaultServerReconcileInterval is how often to reconcile Agents.
 	DefaultServerReconcileInterval = 30 * time.Second
 )
+
+// GitLsRemoteFunc is the function signature for checking remote Git refs.
+type GitLsRemoteFunc func(ctx context.Context, repo, ref, secretName string) (string, error)
+
+// CountActiveTasksFunc is the function signature for counting active tasks.
+type CountActiveTasksFunc func(ctx context.Context, agentName, namespace string) (int, error)
 
 // AgentReconciler reconciles Agent resources.
 // It manages the Deployment and Service for each Agent.
 type AgentReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+
+	// GitLsRemoteFn checks remote Git refs. Defaults to gitLsRemote.
+	GitLsRemoteFn GitLsRemoteFunc
+	// CountActiveTasksFn counts active tasks. Defaults to r.countActiveTasks.
+	CountActiveTasksFn CountActiveTasksFunc
 }
 
 // +kubebuilder:rbac:groups=kubeopencode.io,resources=agents,verbs=get;list;watch;update;patch
@@ -123,8 +138,15 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, err
 	}
 
+	// Reconcile Git sync (detect remote changes, handle rollout with Task protection)
+	gitHashAnnotations, syncRequeueAfter, err := r.reconcileGitSync(ctx, &agent, gitMounts)
+	if err != nil {
+		logger.Error(err, "Failed to reconcile git sync")
+		return ctrl.Result{}, err
+	}
+
 	// Reconcile the Deployment (with context support)
-	if err := r.reconcileDeployment(ctx, &agent, agentCfg, sysCfg, contextConfigMap, fileMounts, dirMounts, gitMounts); err != nil {
+	if err := r.reconcileDeployment(ctx, &agent, agentCfg, sysCfg, contextConfigMap, fileMounts, dirMounts, gitMounts, gitHashAnnotations); err != nil {
 		logger.Error(err, "Failed to reconcile Deployment")
 		return ctrl.Result{}, err
 	}
@@ -142,7 +164,7 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	}
 
 	// Calculate optimal requeue interval.
-	// When idle timer is running, requeue precisely when timeout expires.
+	// Use the shortest of: default interval, standby idle timeout, git sync interval.
 	requeueAfter := DefaultServerReconcileInterval
 	if agent.Spec.Standby != nil && !agent.Spec.Suspend && agent.Status.IdleSince != nil {
 		remaining := time.Until(agent.Status.IdleSince.Time.Add(agent.Spec.Standby.IdleTimeout.Duration))
@@ -150,14 +172,17 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 			requeueAfter = remaining
 		}
 	}
+	if syncRequeueAfter > 0 && syncRequeueAfter < requeueAfter {
+		requeueAfter = syncRequeueAfter
+	}
 	return ctrl.Result{RequeueAfter: requeueAfter}, nil
 }
 
 // reconcileDeployment ensures the Deployment exists and is up-to-date.
-func (r *AgentReconciler) reconcileDeployment(ctx context.Context, agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, sysCfg systemConfig, contextConfigMap *corev1.ConfigMap, fileMounts []fileMount, dirMounts []dirMount, gitMounts []gitMount) error {
+func (r *AgentReconciler) reconcileDeployment(ctx context.Context, agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, sysCfg systemConfig, contextConfigMap *corev1.ConfigMap, fileMounts []fileMount, dirMounts []dirMount, gitMounts []gitMount, gitHashAnnotations map[string]string) error {
 	logger := log.FromContext(ctx)
 
-	desired := BuildServerDeployment(agent, agentCfg, sysCfg, contextConfigMap, fileMounts, dirMounts, gitMounts)
+	desired := BuildServerDeployment(agent, agentCfg, sysCfg, contextConfigMap, fileMounts, dirMounts, gitMounts, gitHashAnnotations)
 
 	// Scale to 0 replicas when suspended
 	if agent.Spec.Suspend {

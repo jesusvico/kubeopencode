@@ -247,6 +247,13 @@ export const mockAgents: Agent[] = [
       ready: true,
       port: 4096,
       suspended: false,
+      gitSyncStatuses: [
+        {
+          name: 'team-prompts',
+          commitHash: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+          lastSynced: '2026-04-02T10:30:00Z',
+        },
+      ],
     },
     credentials: [
       { name: 'github-token', secretRef: 'github-creds', env: 'GITHUB_TOKEN' },
