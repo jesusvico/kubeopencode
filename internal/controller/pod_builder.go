@@ -310,6 +310,30 @@ const (
 	DefaultCABundleSecretKey = "ca.crt"
 )
 
+// inferImagePullPolicy returns Always for images with :latest tag or no tag
+// (Kubernetes defaults untagged images to :latest), and IfNotPresent for
+// images with a specific version tag or digest reference (@sha256:...).
+func inferImagePullPolicy(image string) corev1.PullPolicy {
+	// Digest references (e.g. image@sha256:abc) are immutable — always IfNotPresent
+	if strings.Contains(image, "@") {
+		return corev1.PullIfNotPresent
+	}
+	// Extract the tag after the last colon (skip port-like colons by checking for '/')
+	tag := ""
+	if idx := strings.LastIndex(image, ":"); idx != -1 {
+		candidate := image[idx+1:]
+		// If there's a '/' in the candidate, it's a port separator, not a tag
+		if !strings.Contains(candidate, "/") {
+			tag = candidate
+		}
+	}
+	// No tag or explicitly "latest" → Always pull
+	if tag == "" || tag == "latest" {
+		return corev1.PullAlways
+	}
+	return corev1.PullIfNotPresent
+}
+
 // buildOpenCodeInitContainer creates an init container that copies OpenCode binary to /tools.
 // This enables the two-container pattern where:
 // - Init container (agentImage): Contains OpenCode, copies it to /tools
@@ -318,7 +342,7 @@ func buildOpenCodeInitContainer(agentImage string) corev1.Container {
 	return corev1.Container{
 		Name:            "opencode-init",
 		Image:           agentImage,
-		ImagePullPolicy: corev1.PullIfNotPresent,
+		ImagePullPolicy: inferImagePullPolicy(agentImage),
 		// Uses default entrypoint from agents/opencode/entrypoint.sh
 		// which copies /opencode to ${TOOLS_DIR}/opencode
 		Env: []corev1.EnvVar{
@@ -1123,7 +1147,7 @@ func buildPod(task *kubeopenv1alpha1.Task, podName string, cfg agentConfig, cont
 	agentContainer := corev1.Container{
 		Name:            "agent",
 		Image:           executorImage,
-		ImagePullPolicy: corev1.PullIfNotPresent,
+		ImagePullPolicy: inferImagePullPolicy(executorImage),
 		WorkingDir:      cfg.workspaceDir,
 		Command:         agentCommand,
 		Env:             envVars,

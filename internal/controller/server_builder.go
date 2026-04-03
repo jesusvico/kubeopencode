@@ -468,7 +468,7 @@ func BuildServerDeployment(agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, 
 	container := corev1.Container{
 		Name:            ServerContainerName,
 		Image:           agentCfg.executorImage,
-		ImagePullPolicy: corev1.PullIfNotPresent,
+		ImagePullPolicy: inferImagePullPolicy(agentCfg.executorImage),
 		WorkingDir:      agentCfg.workspaceDir,
 		Command:         command,
 		Env:             envVars,
