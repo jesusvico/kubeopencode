@@ -99,12 +99,6 @@ Giving an agent tools is one thing. Getting the permissions for those tools to a
 
 Slack is a good example. We can send one-way notifications via webhook, but setting up a real-time Slack bot that lets the agent interact with engineers conversationally requires additional infrastructure and permissions. Without it, many scenarios still require a human to copy-paste information between the agent and communication channels, which caps the level of automation we can achieve.
 
-### Agent for Teams
-
-Right now, each agent instance can run on an individual engineer's machine. This is useful, but it's not yet an agent that serves the team as a whole. A true team-level agent needs to run as a persistent service, available to any team member at any time.
-
-More importantly, it needs reliable project management capabilities. In practice, we've found that the agent can complete engineering tasks — fix a bug, create a PR — but we can't yet guarantee that it will consistently update all the surrounding project state: moving tickets, closing issues, updating labels, posting status summaries. A human engineer does these things as second nature, but for the agent, this "last mile" of project management is still unreliable.
-
 ### Long-Term Memory
 
 Each session starts fresh. The agent has no record of what happened yesterday, last week, or last sprint. This matters more than you might think.
