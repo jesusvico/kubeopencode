@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { ClipboardAddon } from '@xterm/addon-clipboard';
+import { WebglAddon } from '@xterm/addon-webgl';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 
 interface TerminalPanelProps {
@@ -53,7 +55,9 @@ function TerminalPanel({ namespace, agentName }: TerminalPanelProps) {
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.loadAddon(new ClipboardAddon());
+    term.loadAddon(new WebLinksAddon());
     term.open(termRef.current);
+    try { term.loadAddon(new WebglAddon()); } catch { /* fallback to canvas renderer */ }
     fitAddon.fit();
 
     terminalRef.current = term;
