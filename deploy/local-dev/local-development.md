@@ -77,15 +77,16 @@ Load images into the Kind cluster (required because Kind cannot pull from local 
 # Load controller image
 kind load docker-image quay.io/kubeopencode/kubeopencode:latest --name kubeopencode
 
-# Load all agent images
+# Tag and load all agent images with :dev tag
 for img in opencode devbox attach; do
-  kind load docker-image quay.io/kubeopencode/kubeopencode-agent-${img}:latest --name kubeopencode
+  docker tag quay.io/kubeopencode/kubeopencode-agent-${img}:$(make -s print-version) quay.io/kubeopencode/kubeopencode-agent-${img}:dev
+  kind load docker-image quay.io/kubeopencode/kubeopencode-agent-${img}:dev --name kubeopencode
 done
 ```
 
 > **Important:** All three agent images must be loaded. Missing the `attach` image will cause `agentRef` Tasks to fail with `ErrImagePull`.
 
-> **Important: Avoid `:latest` tag for agent images.** The controller sets `imagePullPolicy: Always` for images with the `:latest` tag or no tag (standard Kubernetes convention). In Kind, this causes `ErrImagePull` because the cluster cannot pull from remote registries. The local-dev agent YAML files use versioned tags (e.g., `:0.0.18`) to avoid this. If you change agent images, always use a versioned tag, not `:latest`.
+> **Important: Avoid `:latest` tag for agent images.** The controller sets `imagePullPolicy: Always` for images with the `:latest` tag or no tag (standard Kubernetes convention). In Kind, this causes `ErrImagePull` because the cluster cannot pull from remote registries. The local-dev agent YAML files use the `:dev` tag to avoid this. If you change agent images, always use a non-latest tag.
 
 ### 4. Deploy with Helm
 
@@ -103,7 +104,7 @@ helm upgrade --install kubeopencode ./charts/kubeopencode \
 
 > **Note:** The `server.enabled=true` deploys the UI server. You can omit it if you only need the controller.
 
-> **Important:** The Helm chart defaults to `v<VERSION>` image tags (e.g., `v0.0.18`), but `make docker-build` tags images as `<VERSION>` (without `v` prefix) and `latest`. You must explicitly set `controller.image.tag=latest` and `server.image.tag=latest` to match the locally built images. Without this, pods will fail with `ErrImageNeverPull`.
+> **Important:** The Helm chart defaults to `v<VERSION>` image tags, but `make docker-build` tags images as `<VERSION>` (without `v` prefix) and `latest`. You must explicitly set `controller.image.tag=latest` and `server.image.tag=latest` to match the locally built images. Without this, pods will fail with `ErrImageNeverPull`.
 
 ### 5. Verify Deployment
 

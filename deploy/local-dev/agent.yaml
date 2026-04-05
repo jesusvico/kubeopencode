@@ -11,7 +11,7 @@ spec:
   templateRef:
     name: team-base
   profile: "Team shared agent"
-  executorImage: quay.io/kubeopencode/kubeopencode-agent-devbox:0.0.18
+  executorImage: quay.io/kubeopencode/kubeopencode-agent-devbox:dev
   workspaceDir: /workspace
   serviceAccountName: kubeopencode-agent
   port: 4096

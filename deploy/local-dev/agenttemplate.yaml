@@ -11,11 +11,11 @@ metadata:
   name: team-base
 spec:
   # OpenCode init container image
-  agentImage: quay.io/kubeopencode/kubeopencode-agent-opencode:0.0.18
+  agentImage: quay.io/kubeopencode/kubeopencode-agent-opencode:dev
   # Executor container image
-  executorImage: quay.io/kubeopencode/kubeopencode-agent-devbox:0.0.18
+  executorImage: quay.io/kubeopencode/kubeopencode-agent-devbox:dev
   # Attach image for agentRef Task Pods
-  attachImage: quay.io/kubeopencode/kubeopencode-agent-attach:0.0.18
+  attachImage: quay.io/kubeopencode/kubeopencode-agent-attach:dev
   # Working directory
   workspaceDir: /workspace
   # ServiceAccount for RBAC

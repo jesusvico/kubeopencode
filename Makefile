@@ -419,6 +419,7 @@ e2e: e2e-setup e2e-test ## Run full e2e test workflow
 
 # Kind cluster name for local development
 LOCAL_DEV_CLUSTER ?= kubeopencode
+LOCAL_DEV_IMG_TAG ?= dev
 LOCAL_DEV_AGENTS := opencode devbox attach
 
 # All images needed for local dev (controller + agents)
@@ -441,12 +442,12 @@ local-dev-setup: ## One-command local dev setup: cluster, images, helm, test res
 		echo "  Building agent: $$agent"; \
 		$(MAKE) agent-build AGENT=$$agent; \
 	done
-	@# Step 3: Load images into Kind (docker-build already tags :latest)
+	@# Step 3: Load images into Kind
 	@echo "[3/5] Loading images into Kind..."
 	@kind load docker-image $(LOCAL_DEV_CONTROLLER_IMG):latest --name $(LOCAL_DEV_CLUSTER)
 	@for img in $(LOCAL_DEV_AGENT_IMGS); do \
-		docker tag $$img:$(VERSION) $$img:latest 2>/dev/null || true; \
-		kind load docker-image $$img:latest --name $(LOCAL_DEV_CLUSTER); \
+		docker tag $$img:$(VERSION) $$img:$(LOCAL_DEV_IMG_TAG) 2>/dev/null || true; \
+		kind load docker-image $$img:$(LOCAL_DEV_IMG_TAG) --name $(LOCAL_DEV_CLUSTER); \
 	done
 	@# Step 4: Deploy with Helm
 	@echo "[4/5] Deploying KubeOpenCode with Helm..."
@@ -478,8 +479,8 @@ local-dev-reload: ## Rebuild and reload all images into local dev cluster
 	done
 	@kind load docker-image $(LOCAL_DEV_CONTROLLER_IMG):latest --name $(LOCAL_DEV_CLUSTER)
 	@for img in $(LOCAL_DEV_AGENT_IMGS); do \
-		docker tag $$img:$(VERSION) $$img:latest 2>/dev/null || true; \
-		kind load docker-image $$img:latest --name $(LOCAL_DEV_CLUSTER); \
+		docker tag $$img:$(VERSION) $$img:$(LOCAL_DEV_IMG_TAG) 2>/dev/null || true; \
+		kind load docker-image $$img:$(LOCAL_DEV_IMG_TAG) --name $(LOCAL_DEV_CLUSTER); \
 	done
 	@kubectl rollout restart deployment -n kubeopencode-system
 	@kubectl rollout status deployment/kubeopencode-controller -n kubeopencode-system --timeout=90s
