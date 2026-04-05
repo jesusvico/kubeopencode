@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { ClipboardAddon } from '@xterm/addon-clipboard';
 import '@xterm/xterm/css/xterm.css';
 
 interface TerminalPanelProps {
@@ -51,6 +52,7 @@ function TerminalPanel({ namespace, agentName }: TerminalPanelProps) {
 
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
+    term.loadAddon(new ClipboardAddon());
     term.open(termRef.current);
     fitAddon.fit();
 
