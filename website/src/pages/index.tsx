@@ -343,44 +343,32 @@ function ArchitectureSection(): ReactNode {
 // Section 7: FAQ
 type FaqItem = {
   question: string;
-  answer: string;
+  answer: ReactNode;
 };
 
 const faqItems: FaqItem[] = [
   {
-    question: 'What is KubeOpenCode?',
+    question: 'Do I need my own Kubernetes cluster?',
     answer:
-      'KubeOpenCode is an open-source platform that brings AI coding agents into the Kubernetes ecosystem. It lets you deploy, manage, and scale AI agents as Kubernetes-native services with declarative CRDs, RBAC, and enterprise-grade governance.',
+      'Yes. KubeOpenCode runs on any standard Kubernetes cluster (v1.26+). You can use managed services like EKS, GKE, AKS, or a local cluster with Kind or minikube for development.',
   },
   {
-    question: 'How is KubeOpenCode different from OpenCode?',
-    answer:
-      'OpenCode is a terminal-based AI coding tool for individual developers. KubeOpenCode builds on top of OpenCode to provide a Kubernetes-native platform for teams and enterprise \u2014 adding multi-tenancy, persistent agents, task orchestration, and infrastructure-level controls.',
+    question: 'What AI models and providers are supported?',
+    answer: (
+      <>
+        KubeOpenCode uses <a href="https://opencode.ai">OpenCode</a> as its AI engine, so it supports every provider and model that OpenCode supports — including Anthropic, OpenAI, Google Gemini, Amazon Bedrock, Azure, Google Vertex, xAI, Mistral, Groq, OpenRouter, GitHub Copilot, and more. You can also use any OpenAI-compatible endpoint. See the <a href="https://opencode.ai/docs/providers">full list of 75+ supported providers</a>.
+      </>
+    ),
   },
   {
-    question: 'Do I need to run my own Kubernetes cluster?',
+    question: 'Do I need to pay?',
     answer:
-      'Yes, KubeOpenCode runs on any standard Kubernetes cluster (v1.26+). You can use managed services like EKS, GKE, AKS, or a local cluster with Kind or minikube for development.',
-  },
-  {
-    question: 'What AI models are supported?',
-    answer:
-      'KubeOpenCode supports any model that OpenCode supports, including Claude, GPT-4, Gemini, and local models via Ollama. You configure model access through Agent credentials and the OpenCode configuration.',
-  },
-  {
-    question: 'Is KubeOpenCode free?',
-    answer:
-      'Yes, KubeOpenCode is free and open-source under the Apache License 2.0. You only pay for your own infrastructure (Kubernetes cluster) and AI model API usage.',
+      'KubeOpenCode itself is free and open-source (Apache 2.0). You pay for your own infrastructure (Kubernetes cluster) and any AI model API keys you choose to use.',
   },
   {
     question: 'Can I use it in production?',
     answer:
-      'KubeOpenCode is currently in early alpha (v0.0.x). The API may change without backward compatibility. We recommend using it for development, testing, and evaluation while we stabilize the API toward a v1.0 release.',
-  },
-  {
-    question: 'How do I contribute?',
-    answer:
-      'Contributions are welcome! Check out our GitHub repository for open issues, join the Slack community for discussions, or submit a pull request. See the CONTRIBUTING guide in the repository for details.',
+      'KubeOpenCode is currently in early alpha (v0.0.x). The API may change without backward compatibility. We recommend using it for development, testing, and evaluation while we work toward a stable release.',
   },
 ];
 
