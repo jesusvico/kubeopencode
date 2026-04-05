@@ -160,6 +160,17 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, err
 	}
 
+	// Add context ConfigMap content hash to pod template annotations.
+	// This triggers a Deployment rolling update when ConfigMap content changes
+	// (e.g., skills.paths, config JSON, text context content) — changes that
+	// don't affect the Deployment spec but require a Pod restart to take effect.
+	if contextConfigMap != nil && len(contextConfigMap.Data) > 0 {
+		if gitHashAnnotations == nil {
+			gitHashAnnotations = make(map[string]string)
+		}
+		gitHashAnnotations[ContextHashAnnotationKey] = hashConfigMapData(contextConfigMap.Data)
+	}
+
 	// Reconcile the Deployment (with context support)
 	if err := r.reconcileDeployment(ctx, &agent, agentCfg, sysCfg, contextConfigMap, fileMounts, dirMounts, gitMounts, gitHashAnnotations); err != nil {
 		logger.Error(err, "Failed to reconcile Deployment")

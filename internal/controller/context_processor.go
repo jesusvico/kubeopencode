@@ -4,6 +4,8 @@ package controller
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
@@ -16,6 +18,38 @@ import (
 
 	kubeopenv1alpha1 "github.com/kubeopencode/kubeopencode/api/v1alpha1"
 )
+
+const (
+	// ContextHashAnnotationKey is the annotation key for the context ConfigMap content hash.
+	// When ConfigMap content changes (e.g., skills.paths, config JSON, text contexts),
+	// the hash value changes, triggering a Deployment rolling update.
+	// This follows the same pattern as Helm's checksum/config annotation.
+	ContextHashAnnotationKey = "kubeopencode.io/context-hash"
+)
+
+// hashConfigMapData computes a deterministic SHA-256 hash of ConfigMap data.
+// Keys are sorted to ensure the hash is stable regardless of map iteration order.
+// Returns a 16-character hex string (8 bytes), sufficient for change detection.
+func hashConfigMapData(data map[string]string) string {
+	if len(data) == 0 {
+		return ""
+	}
+
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	h := sha256.New()
+	for _, k := range keys {
+		h.Write([]byte(k))
+		h.Write([]byte{0}) // null separator between key and value
+		h.Write([]byte(data[k]))
+		h.Write([]byte{0}) // null separator between entries
+	}
+	return hex.EncodeToString(h.Sum(nil))[:16]
+}
 
 // contextReader is the minimal interface needed for context resolution.
 // Both TaskReconciler and AgentReconciler satisfy this via client.Client.

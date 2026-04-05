@@ -157,6 +157,151 @@ var _ = Describe("AgentController", func() {
 		})
 	})
 
+	Context("When updating Agent context content", func() {
+		It("Should update the Deployment pod template hash annotation", func() {
+			agentName := "test-context-hash-agent"
+
+			By("Creating an Agent with a text context")
+			agent := &kubeopenv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      agentName,
+					Namespace: agentNamespace,
+				},
+				Spec: kubeopenv1alpha1.AgentSpec{
+					ExecutorImage:      "quay.io/kubeopencode/kubeopencode-agent-devbox:latest",
+					WorkspaceDir:       "/workspace",
+					ServiceAccountName: "test-agent",
+					Port:               4096,
+					Contexts: []kubeopenv1alpha1.ContextItem{
+						{
+							Type: kubeopenv1alpha1.ContextTypeText,
+							Text: "initial system prompt",
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, agent)).Should(Succeed())
+
+			By("Waiting for Deployment to be created with context hash annotation")
+			deploymentName := ServerDeploymentName(agentName)
+			var initialHash string
+			Eventually(func() string {
+				var deployment appsv1.Deployment
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      deploymentName,
+					Namespace: agentNamespace,
+				}, &deployment); err != nil {
+					return ""
+				}
+				if deployment.Spec.Template.Annotations == nil {
+					return ""
+				}
+				initialHash = deployment.Spec.Template.Annotations[ContextHashAnnotationKey]
+				return initialHash
+			}, timeout, interval).ShouldNot(BeEmpty())
+
+			By("Updating the Agent with different text context content")
+			var updatedAgent kubeopenv1alpha1.Agent
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      agentName,
+				Namespace: agentNamespace,
+			}, &updatedAgent)).Should(Succeed())
+			updatedAgent.Spec.Contexts[0].Text = "updated system prompt with new instructions"
+			Expect(k8sClient.Update(ctx, &updatedAgent)).Should(Succeed())
+
+			By("Expecting the Deployment context hash annotation to change")
+			Eventually(func() string {
+				var deployment appsv1.Deployment
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      deploymentName,
+					Namespace: agentNamespace,
+				}, &deployment); err != nil {
+					return initialHash // return initial to keep waiting
+				}
+				if deployment.Spec.Template.Annotations == nil {
+					return initialHash
+				}
+				return deployment.Spec.Template.Annotations[ContextHashAnnotationKey]
+			}, timeout, interval).ShouldNot(Equal(initialHash))
+
+			By("Cleaning up the Agent")
+			Expect(k8sClient.Delete(ctx, &updatedAgent)).Should(Succeed())
+		})
+
+		It("Should update hash when Agent config content changes with skills", func() {
+			agentName := "test-config-hash-agent"
+			initialConfig := `{"model":"claude-sonnet"}`
+
+			By("Creating an Agent with config and a text context")
+			agent := &kubeopenv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      agentName,
+					Namespace: agentNamespace,
+				},
+				Spec: kubeopenv1alpha1.AgentSpec{
+					ExecutorImage:      "quay.io/kubeopencode/kubeopencode-agent-devbox:latest",
+					WorkspaceDir:       "/workspace",
+					ServiceAccountName: "test-agent",
+					Port:               4096,
+					Config:             &initialConfig,
+					Contexts: []kubeopenv1alpha1.ContextItem{
+						{
+							Type: kubeopenv1alpha1.ContextTypeText,
+							Text: "some context",
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, agent)).Should(Succeed())
+
+			By("Waiting for Deployment with context hash")
+			deploymentName := ServerDeploymentName(agentName)
+			var initialHash string
+			Eventually(func() string {
+				var deployment appsv1.Deployment
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      deploymentName,
+					Namespace: agentNamespace,
+				}, &deployment); err != nil {
+					return ""
+				}
+				if deployment.Spec.Template.Annotations == nil {
+					return ""
+				}
+				initialHash = deployment.Spec.Template.Annotations[ContextHashAnnotationKey]
+				return initialHash
+			}, timeout, interval).ShouldNot(BeEmpty())
+
+			By("Updating the Agent config content")
+			var updatedAgent kubeopenv1alpha1.Agent
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      agentName,
+				Namespace: agentNamespace,
+			}, &updatedAgent)).Should(Succeed())
+			newConfig := `{"model":"claude-opus"}`
+			updatedAgent.Spec.Config = &newConfig
+			Expect(k8sClient.Update(ctx, &updatedAgent)).Should(Succeed())
+
+			By("Expecting the context hash annotation to change")
+			Eventually(func() string {
+				var deployment appsv1.Deployment
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      deploymentName,
+					Namespace: agentNamespace,
+				}, &deployment); err != nil {
+					return initialHash
+				}
+				if deployment.Spec.Template.Annotations == nil {
+					return initialHash
+				}
+				return deployment.Spec.Template.Annotations[ContextHashAnnotationKey]
+			}, timeout, interval).ShouldNot(Equal(initialHash))
+
+			By("Cleaning up the Agent")
+			Expect(k8sClient.Delete(ctx, &updatedAgent)).Should(Succeed())
+		})
+	})
+
 	Context("When creating an Agent with session persistence", func() {
 		It("Should create a PVC for session data", func() {
 			agentName := "test-session-persist-agent"

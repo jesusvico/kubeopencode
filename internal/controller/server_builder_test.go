@@ -1479,3 +1479,156 @@ func TestBuildServerDeployment_WithGitSyncRollout(t *testing.T) {
 		t.Errorf("expected hash 'abc123def456', got %q", hash)
 	}
 }
+
+func TestHashConfigMapData(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      map[string]string
+		wantEmpty bool
+	}{
+		{
+			name:      "nil map returns empty",
+			data:      nil,
+			wantEmpty: true,
+		},
+		{
+			name:      "empty map returns empty",
+			data:      map[string]string{},
+			wantEmpty: true,
+		},
+		{
+			name: "single entry produces hash",
+			data: map[string]string{
+				"config.json": `{"model":"test"}`,
+			},
+			wantEmpty: false,
+		},
+		{
+			name: "multiple entries produce hash",
+			data: map[string]string{
+				"config.json": `{"model":"test"}`,
+				"context.md":  "some context",
+			},
+			wantEmpty: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := hashConfigMapData(tt.data)
+			if tt.wantEmpty {
+				if got != "" {
+					t.Errorf("hashConfigMapData() = %q, want empty", got)
+				}
+				return
+			}
+			if got == "" {
+				t.Error("hashConfigMapData() returned empty, want non-empty hash")
+			}
+			if len(got) != 16 {
+				t.Errorf("hashConfigMapData() length = %d, want 16", len(got))
+			}
+		})
+	}
+
+	// Determinism: same data produces same hash
+	t.Run("deterministic", func(t *testing.T) {
+		data := map[string]string{
+			"a": "1",
+			"b": "2",
+			"c": "3",
+		}
+		h1 := hashConfigMapData(data)
+		h2 := hashConfigMapData(data)
+		if h1 != h2 {
+			t.Errorf("hashConfigMapData() not deterministic: %q != %q", h1, h2)
+		}
+	})
+
+	// Different data produces different hash
+	t.Run("different data produces different hash", func(t *testing.T) {
+		data1 := map[string]string{"config.json": `{"model":"a"}`}
+		data2 := map[string]string{"config.json": `{"model":"b"}`}
+		h1 := hashConfigMapData(data1)
+		h2 := hashConfigMapData(data2)
+		if h1 == h2 {
+			t.Errorf("hashConfigMapData() produced same hash for different data: %q", h1)
+		}
+	})
+
+	// Key change produces different hash
+	t.Run("different keys produce different hash", func(t *testing.T) {
+		data1 := map[string]string{"key1": "value"}
+		data2 := map[string]string{"key2": "value"}
+		h1 := hashConfigMapData(data1)
+		h2 := hashConfigMapData(data2)
+		if h1 == h2 {
+			t.Errorf("hashConfigMapData() produced same hash for different keys: %q", h1)
+		}
+	})
+}
+
+func TestBuildServerDeployment_ContextHashAnnotation(t *testing.T) {
+	agent := &kubeopenv1alpha1.Agent{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-ctx-hash",
+			Namespace: "default",
+		},
+		Spec: kubeopenv1alpha1.AgentSpec{
+			Port: 4096,
+		},
+	}
+
+	cfg := agentConfig{
+		executorImage: "test-executor:v1",
+		agentImage:    "test-agent:v1",
+		workspaceDir:  "/workspace",
+	}
+	sysCfg := systemConfig{}
+
+	// Simulate what the agent controller does: compute hash and inject into annotations
+	configMapData := map[string]string{
+		"tools-opencode.json": `{"skills":{"paths":["/skills/official-skills/skill-creator","/skills/official-skills/frontend-design"]}}`,
+	}
+	contextConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-ctx-hash-server-context",
+			Namespace: "default",
+		},
+		Data: configMapData,
+	}
+
+	annotations := map[string]string{
+		ContextHashAnnotationKey: hashConfigMapData(configMapData),
+	}
+
+	deployment := BuildServerDeployment(agent, cfg, sysCfg, contextConfigMap, nil, nil, nil, annotations)
+
+	// Verify annotation is present on pod template
+	podAnnotations := deployment.Spec.Template.Annotations
+	if podAnnotations == nil {
+		t.Fatal("expected pod template annotations, got nil")
+	}
+	hash, ok := podAnnotations[ContextHashAnnotationKey]
+	if !ok {
+		t.Error("expected context hash annotation on pod template")
+	}
+	if len(hash) != 16 {
+		t.Errorf("expected 16-char hash, got %q (len=%d)", hash, len(hash))
+	}
+
+	// Now change the config content and verify hash changes
+	configMapData2 := map[string]string{
+		"tools-opencode.json": `{"skills":{"paths":["/skills/official-skills/skill-creator","/skills/official-skills/frontend-design","/skills/official-skills/doc-coauthoring"]}}`,
+	}
+	annotations2 := map[string]string{
+		ContextHashAnnotationKey: hashConfigMapData(configMapData2),
+	}
+
+	deployment2 := BuildServerDeployment(agent, cfg, sysCfg, contextConfigMap, nil, nil, nil, annotations2)
+	hash2 := deployment2.Spec.Template.Annotations[ContextHashAnnotationKey]
+
+	if hash == hash2 {
+		t.Error("context hash should differ when ConfigMap content changes")
+	}
+}

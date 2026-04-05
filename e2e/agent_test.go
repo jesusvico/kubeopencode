@@ -8,6 +8,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,6 +16,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kubeopenv1alpha1 "github.com/kubeopencode/kubeopencode/api/v1alpha1"
+)
+
+const (
+	// contextHashAnnotationKey mirrors the controller constant for e2e test assertions.
+	contextHashAnnotationKey = "kubeopencode.io/context-hash"
 )
 
 // stringPtr returns a pointer to the given string value
@@ -1019,6 +1025,137 @@ var _ = Describe("Agent E2E Tests", Label(LabelAgent), func() {
 			Expect(k8sClient.Delete(ctx, task)).Should(Succeed())
 			Expect(k8sClient.Delete(ctx, agent)).Should(Succeed())
 			Expect(k8sClient.Delete(ctx, secret)).Should(Succeed())
+		})
+	})
+
+	Context("Agent context content change triggers Deployment rollout", func() {
+		It("should update Deployment pod template hash when text context content changes", func() {
+			agentName := uniqueName("ctx-hash")
+
+			By("Creating Agent with a text context")
+			agent := &kubeopenv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      agentName,
+					Namespace: testNS,
+				},
+				Spec: kubeopenv1alpha1.AgentSpec{
+					AgentImage:         agentImage,
+					ExecutorImage:      echoImage,
+					ServiceAccountName: testServiceAccount,
+					WorkspaceDir:       "/workspace",
+					Command:            []string{"sh", "-c", "echo 'running' && sleep 3600"},
+					Contexts: []kubeopenv1alpha1.ContextItem{
+						{
+							Type: kubeopenv1alpha1.ContextTypeText,
+							Text: "initial system prompt for testing",
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, agent)).Should(Succeed())
+
+			By("Waiting for Deployment to be created with context hash annotation")
+			deploymentName := fmt.Sprintf("%s-server", agentName)
+			deploymentKey := types.NamespacedName{Name: deploymentName, Namespace: testNS}
+			var initialHash string
+			Eventually(func() string {
+				deployment := &appsv1.Deployment{}
+				if err := k8sClient.Get(ctx, deploymentKey, deployment); err != nil {
+					return ""
+				}
+				if deployment.Spec.Template.Annotations == nil {
+					return ""
+				}
+				initialHash = deployment.Spec.Template.Annotations[contextHashAnnotationKey]
+				return initialHash
+			}, timeout, interval).ShouldNot(BeEmpty(), "Deployment should have context-hash annotation")
+
+			By("Updating the Agent text context content")
+			var updatedAgent kubeopenv1alpha1.Agent
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: agentName, Namespace: testNS}, &updatedAgent)).Should(Succeed())
+			updatedAgent.Spec.Contexts[0].Text = "completely different system prompt with new instructions"
+			Expect(k8sClient.Update(ctx, &updatedAgent)).Should(Succeed())
+
+			By("Expecting the Deployment context hash annotation to change (triggering rolling update)")
+			Eventually(func() string {
+				deployment := &appsv1.Deployment{}
+				if err := k8sClient.Get(ctx, deploymentKey, deployment); err != nil {
+					return initialHash
+				}
+				if deployment.Spec.Template.Annotations == nil {
+					return initialHash
+				}
+				return deployment.Spec.Template.Annotations[contextHashAnnotationKey]
+			}, timeout, interval).ShouldNot(Equal(initialHash), "Context hash should change when text content changes")
+
+			By("Cleaning up")
+			Expect(k8sClient.Delete(ctx, &updatedAgent)).Should(Succeed())
+		})
+
+		It("should update Deployment pod template hash when config content changes alongside contexts", func() {
+			agentName := uniqueName("cfg-hash")
+			initialConfig := `{"model":"test-model-a"}`
+
+			By("Creating Agent with config and a text context")
+			agent := &kubeopenv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      agentName,
+					Namespace: testNS,
+				},
+				Spec: kubeopenv1alpha1.AgentSpec{
+					AgentImage:         agentImage,
+					ExecutorImage:      echoImage,
+					ServiceAccountName: testServiceAccount,
+					WorkspaceDir:       "/workspace",
+					Command:            []string{"sh", "-c", "echo 'running' && sleep 3600"},
+					Config:             &initialConfig,
+					Contexts: []kubeopenv1alpha1.ContextItem{
+						{
+							Type: kubeopenv1alpha1.ContextTypeText,
+							Text: "some context",
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, agent)).Should(Succeed())
+
+			By("Waiting for Deployment with context hash annotation")
+			deploymentName := fmt.Sprintf("%s-server", agentName)
+			deploymentKey := types.NamespacedName{Name: deploymentName, Namespace: testNS}
+			var initialHash string
+			Eventually(func() string {
+				deployment := &appsv1.Deployment{}
+				if err := k8sClient.Get(ctx, deploymentKey, deployment); err != nil {
+					return ""
+				}
+				if deployment.Spec.Template.Annotations == nil {
+					return ""
+				}
+				initialHash = deployment.Spec.Template.Annotations[contextHashAnnotationKey]
+				return initialHash
+			}, timeout, interval).ShouldNot(BeEmpty())
+
+			By("Updating only the config content (not adding/removing contexts)")
+			var updatedAgent kubeopenv1alpha1.Agent
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: agentName, Namespace: testNS}, &updatedAgent)).Should(Succeed())
+			newConfig := `{"model":"test-model-b"}`
+			updatedAgent.Spec.Config = &newConfig
+			Expect(k8sClient.Update(ctx, &updatedAgent)).Should(Succeed())
+
+			By("Expecting the context hash to change (config content change detected)")
+			Eventually(func() string {
+				deployment := &appsv1.Deployment{}
+				if err := k8sClient.Get(ctx, deploymentKey, deployment); err != nil {
+					return initialHash
+				}
+				if deployment.Spec.Template.Annotations == nil {
+					return initialHash
+				}
+				return deployment.Spec.Template.Annotations[contextHashAnnotationKey]
+			}, timeout, interval).ShouldNot(Equal(initialHash), "Context hash should change when config content changes")
+
+			By("Cleaning up")
+			Expect(k8sClient.Delete(ctx, &updatedAgent)).Should(Succeed())
 		})
 	})
 
