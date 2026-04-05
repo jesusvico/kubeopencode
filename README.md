@@ -76,7 +76,7 @@ kubeoc agent attach default -n kubeopencode-system
 
 ### Documentation
 
-For full documentation — including getting started, architecture, features, security, and more — [**head over to our docs**](docs/getting-started.md).
+For full documentation — including getting started, architecture, features, security, and more — [**head over to our docs**](website/docs/getting-started.md).
 
 ### CLI
 

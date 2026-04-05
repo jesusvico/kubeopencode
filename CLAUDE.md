@@ -49,13 +49,13 @@ Key behaviors:
 - Empty `mountPath` → content written to `${WORKSPACE_DIR}/.kubeopencode/context.md` with XML tags
 - Relative paths prefixed with `workspaceDir`; absolute paths used as-is
 
-> See `docs/features.md` for detailed context examples and field reference.
+> See `website/docs/features.md` for detailed context examples and field reference.
 
 ### Agent Configuration (Summary)
 
 Key Agent spec fields: `templateRef`, `profile`, `agentImage`, `executorImage`, `attachImage`, `command` (optional, has default), `workspaceDir` (required), `port` (default: 4096), `persistence`, `suspend`, `standby` (automatic suspend/resume lifecycle), `contexts`, `skills` (external SKILL.md sources from Git repos, auto-injects `skills.paths` into OpenCode config), `config` (inline JSON → `/tools/opencode.json`), `credentials`, `caBundle`, `proxy`, `imagePullSecrets`, `podSpec`, `serviceAccountName`, `maxConcurrentTasks`, `quota`.
 
-> See `docs/features.md` for detailed YAML examples of Agent configuration, proxy, credentials, concurrency, quota, persistence, and Git auto-sync.
+> See `website/docs/features.md` for detailed YAML examples of Agent configuration, proxy, credentials, concurrency, quota, persistence, and Git auto-sync.
 
 **Git Auto-Sync**: Git contexts support `sync` field with `enabled`, `interval`, and `policy` (HotReload or Rollout). HotReload uses a `kubeopencode git-sync` sidecar for in-place updates. Rollout triggers Deployment rolling update with Task protection (waits for active Tasks, 1h safety timeout). See ADR 0027.
 
@@ -63,13 +63,13 @@ Key Agent spec fields: `templateRef`, `profile`, `agentImage`, `executorImage`, 
 
 Reusable blueprint serving two roles: (1) base configuration for Agents via `spec.templateRef.name`, (2) blueprint for ephemeral Tasks via `Task.spec.templateRef`. Merge strategy: Agent wins for scalars; Agent **replaces** template for lists. Agent-only fields: `profile`, `port`, `persistence`, `suspend`, `standby`, `templateRef`.
 
-> See `docs/architecture.md` for AgentTemplate spec fields and merge details.
+> See `website/docs/architecture.md` for AgentTemplate spec fields and merge details.
 
 ### Agent Lifecycle
 
 Agent always creates a Deployment + Service running `opencode serve`. Supports persistence (sessions/workspace PVCs), manual suspend/resume (`suspend`), and standby mode (`standby` auto-suspends after idle, auto-resumes when new task arrives). Standby is connection-aware: active web terminal or CLI attach sessions prevent auto-suspend via annotation heartbeat (`kubeopencode.io/last-connection-active`). See ADR 0028.
 
-> See `docs/features.md` for Agent setup, persistence, suspend/resume, and comparison table.
+> See `website/docs/features.md` for Agent setup, persistence, suspend/resume, and comparison table.
 
 ### Task Stop
 
@@ -253,8 +253,8 @@ docs/                     # Documentation
 - [ ] `charts/kubeopencode/values.yaml` — New config values if needed
 
 **9. Documentation**
-- [ ] `docs/architecture.md` — Architecture, resource relationships
-- [ ] `docs/features.md` — Feature details, YAML examples
+- [ ] `website/docs/architecture.md` — Architecture, resource relationships
+- [ ] `website/docs/features.md` — Feature details, YAML examples
 - [ ] `docs/adr/` — ADR for design decisions (recommended for new features)
 - [ ] `README.md` — User-facing feature summary
 - [ ] `CLAUDE.md` — Update AI assistant guidelines
@@ -271,7 +271,7 @@ docs/                     # Documentation
 
 1. Update `api/v1alpha1/types.go` with kubebuilder markers
 2. Run `make update` then `make verify`
-3. **Update documentation** in `docs/architecture.md`
+3. **Update documentation** in `website/docs/architecture.md`
 4. **Update integration tests** in `internal/controller/*_test.go`
 5. **Update E2E tests** in `e2e/`
 
@@ -311,11 +311,11 @@ Three-tier strategy: unit (`make test`), integration (`make integration-test`, u
 | File | When to Update |
 |------|----------------|
 | `README.md` | User-facing changes, new features |
-| `docs/getting-started.md` | Installation, examples |
-| `docs/features.md` | Context, concurrency, quota, pod config, server mode |
+| `website/docs/getting-started.md` | Installation, examples |
+| `website/docs/features.md` | Context, concurrency, quota, pod config, server mode |
 | `docs/agent-images.md` | Agent image changes |
-| `docs/security.md` | RBAC, credentials |
-| `docs/architecture.md` | System design, API reference |
+| `website/docs/security.md` | RBAC, credentials |
+| `website/docs/architecture.md` | System design, API reference |
 | `docs/troubleshooting.md` | Common issues |
 | `charts/kubeopencode/README.md` | Helm values |
 | `CLAUDE.md` | API changes (also update inline godoc) |

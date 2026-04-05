@@ -6,7 +6,7 @@ We welcome contributions! This document provides guidelines for contributing to 
 
 Before contributing, please:
 
-1. Review the [Architecture Documentation](docs/architecture.md)
+1. Review the [Architecture Documentation](website/docs/architecture.md)
 2. Set up your [Local Development Environment](docs/local-development.md)
 3. Read through [CLAUDE.md](CLAUDE.md) for detailed development guidelines
 
@@ -111,7 +111,7 @@ When modifying CRD definitions:
 1. Update `api/v1alpha1/types.go`
 2. Run `make update` to regenerate CRDs and deepcopy
 3. Run `make verify` to ensure everything is correct
-4. Update documentation in `docs/architecture.md`
+4. Update documentation in `website/docs/architecture.md`
 5. Update integration tests in `internal/controller/*_test.go`
 6. Update E2E tests in `e2e/`
 
