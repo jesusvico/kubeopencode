@@ -98,6 +98,13 @@ export interface ContextItem {
   description?: string;
   type: string;
   mountPath?: string;
+  sync?: GitSyncConfig;
+}
+
+export interface GitSyncConfig {
+  enabled: boolean;
+  interval?: string;
+  policy?: string;
 }
 
 export interface CredentialInfo {

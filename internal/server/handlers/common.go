@@ -160,12 +160,22 @@ func contextsToItems(ctxs []kubeopenv1alpha1.ContextItem) []types.ContextItem {
 	}
 	result := make([]types.ContextItem, 0, len(ctxs))
 	for _, ctx := range ctxs {
-		result = append(result, types.ContextItem{
+		item := types.ContextItem{
 			Name:        ctx.Name,
 			Description: ctx.Description,
 			Type:        string(ctx.Type),
 			MountPath:   ctx.MountPath,
-		})
+		}
+		if ctx.Git != nil && ctx.Git.Sync != nil {
+			item.Sync = &types.GitSyncConfig{
+				Enabled: ctx.Git.Sync.Enabled,
+				Policy:  string(ctx.Git.Sync.Policy),
+			}
+			if ctx.Git.Sync.Interval.Duration > 0 {
+				item.Sync.Interval = ctx.Git.Sync.Interval.Duration.String()
+			}
+		}
+		result = append(result, item)
 	}
 	return result
 }

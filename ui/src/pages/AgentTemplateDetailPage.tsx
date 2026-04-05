@@ -318,6 +318,18 @@ function AgentTemplateDetailPage() {
                         mount: {ctx.mountPath}
                       </p>
                     )}
+                    {ctx.sync && ctx.sync.enabled && (
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200 font-medium">
+                          sync: {ctx.sync.policy || 'HotReload'}
+                        </span>
+                        {ctx.sync.interval && (
+                          <span className="text-[11px] text-stone-400">
+                            every {ctx.sync.interval}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

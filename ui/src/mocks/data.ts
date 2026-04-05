@@ -261,7 +261,7 @@ export const mockAgents: Agent[] = [
     ],
     contexts: [
       { name: 'coding-standards', type: 'Text', description: 'Organization coding standards and best practices' },
-      { name: 'source', type: 'Git', mountPath: '/workspace/source', description: 'Main application repository' },
+      { name: 'source', type: 'Git', mountPath: '/workspace/source', description: 'Main application repository', sync: { enabled: true, interval: '5m0s', policy: 'HotReload' } },
       { name: 'api-docs', type: 'URL', description: 'Internal API documentation' },
     ],
     skillsCount: 1,
@@ -476,7 +476,7 @@ export const mockAgents: Agent[] = [
       { name: 'aws-creds', secretRef: 'aws-credentials', mountPath: '/root/.aws' },
     ],
     contexts: [
-      { name: 'infra-docs', type: 'Git', mountPath: '/workspace/infra', description: 'Infrastructure documentation repo' },
+      { name: 'infra-docs', type: 'Git', mountPath: '/workspace/infra', description: 'Infrastructure documentation repo', sync: { enabled: true, interval: '10m0s', policy: 'Rollout' } },
       { name: 'runbooks', type: 'ConfigMap', description: 'Operational runbooks' },
     ],
     labels: { team: 'platform', tier: 'core' },

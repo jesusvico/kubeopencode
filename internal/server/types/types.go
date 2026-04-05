@@ -24,11 +24,19 @@ type AgentReference struct {
 
 // ContextItem represents a context item in the API
 type ContextItem struct {
-	Name        string `json:"name,omitempty"`
-	Description string `json:"description,omitempty"`
-	Type        string `json:"type"`
-	Text        string `json:"text,omitempty"`
-	MountPath   string `json:"mountPath,omitempty"`
+	Name        string         `json:"name,omitempty"`
+	Description string         `json:"description,omitempty"`
+	Type        string         `json:"type"`
+	Text        string         `json:"text,omitempty"`
+	MountPath   string         `json:"mountPath,omitempty"`
+	Sync        *GitSyncConfig `json:"sync,omitempty"`
+}
+
+// GitSyncConfig represents the sync configuration of a Git context
+type GitSyncConfig struct {
+	Enabled  bool   `json:"enabled"`
+	Interval string `json:"interval,omitempty"`
+	Policy   string `json:"policy,omitempty"`
 }
 
 // AgentTemplateReference represents a reference to an AgentTemplate
