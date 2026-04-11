@@ -101,3 +101,42 @@ spec:
           value: "ai-workload"
           effect: "NoSchedule"
 ```
+
+## Extra Ports
+
+Expose additional ports on the Agent's Service and Deployment using `extraPorts`. This is useful for [Docker-in-Docker](docker-in-docker.md) scenarios where containers inside the agent need to be accessible from outside — for example, web application UIs, VS Code server, or database ports.
+
+```yaml
+apiVersion: kubeopencode.io/v1alpha1
+kind: Agent
+metadata:
+  name: dev-agent
+spec:
+  profile: "Development agent with extra port exposure"
+  agentImage: ghcr.io/kubeopencode/kubeopencode-agent-opencode:latest
+  executorImage: ghcr.io/kubeopencode/kubeopencode-agent-devbox:latest
+  workspaceDir: /workspace
+  serviceAccountName: kubeopencode-agent
+  port: 4096
+  extraPorts:
+    - name: webapp
+      port: 3000
+    - name: vscode
+      port: 8080
+    - name: postgres
+      port: 5432
+      protocol: TCP
+```
+
+Each extra port is added to both the Deployment's container ports and the Agent's ClusterIP Service. Access them via:
+
+```bash
+# Port-forward individual ports
+kubectl port-forward svc/dev-agent 3000:3000 8080:8080
+
+# Open in browser
+# http://localhost:3000 (webapp)
+# http://localhost:8080 (vscode)
+```
+
+`extraPorts` can also be defined on `AgentTemplate`. When an Agent references a template, the Agent's `extraPorts` replaces the template's list (same merge strategy as `credentials` and `contexts`).

@@ -1754,3 +1754,97 @@ func TestBuildServerDeployment_SkillNamesPerNameMount(t *testing.T) {
 		}
 	})
 }
+
+func TestBuildServerDeployment_WithExtraPorts(t *testing.T) {
+	agent := &kubeopenv1alpha1.Agent{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "dind-agent",
+			Namespace: "default",
+		},
+		Spec: kubeopenv1alpha1.AgentSpec{
+			Port: 4096,
+			ExtraPorts: []kubeopenv1alpha1.ExtraPort{
+				{Name: "webapp", Port: 3000},
+				{Name: "vscode", Port: 8080, Protocol: corev1.ProtocolTCP},
+				{Name: "metrics", Port: 9090, Protocol: corev1.ProtocolTCP},
+			},
+		},
+	}
+
+	cfg := agentConfig{
+		executorImage: "test-executor:v1.0.0",
+		agentImage:    "test-agent:v1.0.0",
+		workspaceDir:  "/workspace",
+		extraPorts:    agent.Spec.ExtraPorts,
+	}
+
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
+	if deployment == nil {
+		t.Fatal("BuildServerDeployment returned nil")
+	}
+
+	container := deployment.Spec.Template.Spec.Containers[0]
+
+	// Should have main port + 3 extra ports = 4 total
+	if len(container.Ports) != 4 {
+		t.Fatalf("expected 4 container ports, got %d", len(container.Ports))
+	}
+
+	// Main port
+	if container.Ports[0].Name != "http" || container.Ports[0].ContainerPort != 4096 {
+		t.Errorf("expected main port http:4096, got %s:%d", container.Ports[0].Name, container.Ports[0].ContainerPort)
+	}
+
+	// Extra ports
+	expectedPorts := []struct {
+		name     string
+		port     int32
+		protocol corev1.Protocol
+	}{
+		{"webapp", 3000, corev1.ProtocolTCP},
+		{"vscode", 8080, corev1.ProtocolTCP},
+		{"metrics", 9090, corev1.ProtocolTCP},
+	}
+
+	for i, expected := range expectedPorts {
+		actual := container.Ports[i+1]
+		if actual.Name != expected.name {
+			t.Errorf("port[%d] name = %q, want %q", i+1, actual.Name, expected.name)
+		}
+		if actual.ContainerPort != expected.port {
+			t.Errorf("port[%d] containerPort = %d, want %d", i+1, actual.ContainerPort, expected.port)
+		}
+		if actual.Protocol != expected.protocol {
+			t.Errorf("port[%d] protocol = %q, want %q", i+1, actual.Protocol, expected.protocol)
+		}
+	}
+}
+
+func TestBuildServerDeployment_WithoutExtraPorts(t *testing.T) {
+	agent := &kubeopenv1alpha1.Agent{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "simple-agent",
+			Namespace: "default",
+		},
+		Spec: kubeopenv1alpha1.AgentSpec{
+			Port: 4096,
+		},
+	}
+
+	cfg := agentConfig{
+		executorImage: "test-executor:v1.0.0",
+		agentImage:    "test-agent:v1.0.0",
+		workspaceDir:  "/workspace",
+	}
+
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
+	container := deployment.Spec.Template.Spec.Containers[0]
+
+	// Should have only the main port
+	if len(container.Ports) != 1 {
+		t.Fatalf("expected 1 container port, got %d", len(container.Ports))
+	}
+	if container.Ports[0].Name != "http" || container.Ports[0].ContainerPort != 4096 {
+		t.Errorf("expected main port http:4096, got %s:%d", container.Ports[0].Name, container.Ports[0].ContainerPort)
+	}
+}

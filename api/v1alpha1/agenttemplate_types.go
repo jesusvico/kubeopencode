@@ -107,6 +107,12 @@ type AgentTemplateSpec struct {
 	// +optional
 	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 
+	// ExtraPorts defines additional ports to expose on the Agent's Service and Deployment.
+	// These serve as defaults for Agents derived from this template.
+	// Agents can override this list in their own spec.
+	// +optional
+	ExtraPorts []ExtraPort `json:"extraPorts,omitempty"`
+
 	// MaxConcurrentTasks provides a default concurrency limit for Agents derived from this template.
 	// Agents can override this value in their own spec.
 	// +optional

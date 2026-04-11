@@ -38,6 +38,7 @@ type agentConfig struct {
 	proxy              *kubeopenv1alpha1.ProxyConfig       // HTTP/HTTPS proxy configuration (nil = no proxy)
 	imagePullSecrets   []corev1.LocalObjectReference       // Image pull secrets for private registries
 	port               int32                               // Server port (default 4096)
+	extraPorts         []kubeopenv1alpha1.ExtraPort        // Additional ports to expose on Service/Deployment
 	persistence        *kubeopenv1alpha1.PersistenceConfig // Persistence configuration
 	suspend            bool                                // Whether Agent is suspended
 	serverReady        bool                                // Whether Agent server is ready (from status)
@@ -63,6 +64,7 @@ func ResolveAgentConfig(agent *kubeopenv1alpha1.Agent) agentConfig {
 		proxy:              agent.Spec.Proxy,
 		imagePullSecrets:   agent.Spec.ImagePullSecrets,
 		port:               agent.Spec.Port,
+		extraPorts:         agent.Spec.ExtraPorts,
 		persistence:        agent.Spec.Persistence,
 		suspend:            agent.Spec.Suspend,
 		serverReady:        agent.Status.Ready,
@@ -90,6 +92,7 @@ func ResolveTemplateToConfig(tmpl *kubeopenv1alpha1.AgentTemplate) agentConfig {
 		caBundle:           tmpl.Spec.CABundle,
 		proxy:              tmpl.Spec.Proxy,
 		imagePullSecrets:   tmpl.Spec.ImagePullSecrets,
+		extraPorts:         tmpl.Spec.ExtraPorts,
 	}
 }
 

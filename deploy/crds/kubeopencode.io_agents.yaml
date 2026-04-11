@@ -491,6 +491,54 @@ spec:
                   The container uses /tools/opencode (provided by agentImage init container) to execute AI tasks.
                   If not specified, defaults to "ghcr.io/kubeopencode/kubeopencode-agent-devbox:latest".
                 type: string
+              extraPorts:
+                description: |-
+                  ExtraPorts defines additional ports to expose on the Agent's Service and Deployment.
+                  This is useful for DinD scenarios where containers running inside the agent
+                  need to be accessible from outside (e.g., web application UIs, VS Code server,
+                  database ports for debugging).
+
+                  Each extra port is added to both the Deployment's container ports and the
+                  Agent's Service. Users can then access them via kubectl port-forward or Ingress.
+
+                  Example:
+                    extraPorts:
+                      - name: webapp
+                        port: 3000
+                      - name: vscode
+                        port: 8080
+                items:
+                  description: |-
+                    ExtraPort defines an additional port to expose on the Agent's Service and Deployment.
+                    This enables access to services running inside the agent container, such as
+                    web applications started via Docker-in-Docker, VS Code server, or database ports.
+                  properties:
+                    name:
+                      description: |-
+                        Name is the name of this port within the Service.
+                        Must be unique among all ports (including the main OpenCode server port).
+                      maxLength: 15
+                      minLength: 1
+                      type: string
+                    port:
+                      description: Port is the port number to expose on both the container
+                        and the Service.
+                      format: int32
+                      maximum: 65535
+                      minimum: 1
+                      type: integer
+                    protocol:
+                      default: TCP
+                      description: Protocol defaults to TCP.
+                      enum:
+                      - TCP
+                      - UDP
+                      type: string
+                  required:
+                  - name
+                  - port
+                  type: object
+                type: array
               imagePullSecrets:
                 description: |-
                   ImagePullSecrets is a list of references to secrets for pulling container images

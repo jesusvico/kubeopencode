@@ -489,13 +489,7 @@ func BuildServerDeployment(agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, 
 		Env:             envVars,
 		EnvFrom:         credEnvFroms,
 		VolumeMounts:    volumeMounts,
-		Ports: []corev1.ContainerPort{
-			{
-				Name:          "http",
-				ContainerPort: port,
-				Protocol:      corev1.ProtocolTCP,
-			},
-		},
+		Ports:           buildContainerPorts(port, agentCfg.extraPorts),
 		// StartupProbe gates liveness and readiness probes until the server
 		// is fully initialized (e.g., session restore after resume from standby).
 		// Without this, the readiness probe may pass before the server can
@@ -671,16 +665,59 @@ func BuildServerService(agent *kubeopenv1alpha1.Agent) *corev1.Service {
 			Selector: map[string]string{
 				AgentLabelKey: agent.Name,
 			},
-			Ports: []corev1.ServicePort{
-				{
-					Name:       "http",
-					Port:       port,
-					TargetPort: intstr.FromInt32(port),
-					Protocol:   corev1.ProtocolTCP,
-				},
-			},
+			Ports: buildServicePorts(port, agent.Spec.ExtraPorts),
 		},
 	}
+}
+
+// buildContainerPorts constructs the container port list for an Agent Deployment.
+// It always includes the main OpenCode server port and appends any extra ports.
+func buildContainerPorts(serverPort int32, extraPorts []kubeopenv1alpha1.ExtraPort) []corev1.ContainerPort {
+	ports := []corev1.ContainerPort{
+		{
+			Name:          "http",
+			ContainerPort: serverPort,
+			Protocol:      corev1.ProtocolTCP,
+		},
+	}
+	for _, ep := range extraPorts {
+		protocol := ep.Protocol
+		if protocol == "" {
+			protocol = corev1.ProtocolTCP
+		}
+		ports = append(ports, corev1.ContainerPort{
+			Name:          ep.Name,
+			ContainerPort: ep.Port,
+			Protocol:      protocol,
+		})
+	}
+	return ports
+}
+
+// buildServicePorts constructs the service port list for an Agent Service.
+// It always includes the main OpenCode server port and appends any extra ports.
+func buildServicePorts(serverPort int32, extraPorts []kubeopenv1alpha1.ExtraPort) []corev1.ServicePort {
+	ports := []corev1.ServicePort{
+		{
+			Name:       "http",
+			Port:       serverPort,
+			TargetPort: intstr.FromInt32(serverPort),
+			Protocol:   corev1.ProtocolTCP,
+		},
+	}
+	for _, ep := range extraPorts {
+		protocol := ep.Protocol
+		if protocol == "" {
+			protocol = corev1.ProtocolTCP
+		}
+		ports = append(ports, corev1.ServicePort{
+			Name:       ep.Name,
+			Port:       ep.Port,
+			TargetPort: intstr.FromInt32(ep.Port),
+			Protocol:   protocol,
+		})
+	}
+	return ports
 }
 
 // GetServerPort returns the configured port or default.

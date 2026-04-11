@@ -356,6 +356,56 @@ func TestMergeAgentWithTemplate(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "extraPorts replaced by agent",
+			agent: &kubeopenv1alpha1.Agent{
+				Spec: kubeopenv1alpha1.AgentSpec{
+					WorkspaceDir:       "/workspace",
+					ServiceAccountName: "sa",
+					ExtraPorts: []kubeopenv1alpha1.ExtraPort{
+						{Name: "webapp", Port: 3000},
+					},
+				},
+			},
+			template: &kubeopenv1alpha1.AgentTemplate{
+				Spec: kubeopenv1alpha1.AgentTemplateSpec{
+					WorkspaceDir:       "/workspace",
+					ServiceAccountName: "sa",
+					ExtraPorts: []kubeopenv1alpha1.ExtraPort{
+						{Name: "tmpl-port-1", Port: 8080},
+						{Name: "tmpl-port-2", Port: 9090},
+					},
+				},
+			},
+			check: func(t *testing.T, cfg agentConfig) {
+				if len(cfg.extraPorts) != 1 || cfg.extraPorts[0].Name != "webapp" {
+					t.Errorf("expected agent extraPorts to replace template, got %v", cfg.extraPorts)
+				}
+			},
+		},
+		{
+			name: "nil agent extraPorts inherits template extraPorts",
+			agent: &kubeopenv1alpha1.Agent{
+				Spec: kubeopenv1alpha1.AgentSpec{
+					WorkspaceDir:       "/workspace",
+					ServiceAccountName: "sa",
+				},
+			},
+			template: &kubeopenv1alpha1.AgentTemplate{
+				Spec: kubeopenv1alpha1.AgentTemplateSpec{
+					WorkspaceDir:       "/workspace",
+					ServiceAccountName: "sa",
+					ExtraPorts: []kubeopenv1alpha1.ExtraPort{
+						{Name: "tmpl-port", Port: 8080},
+					},
+				},
+			},
+			check: func(t *testing.T, cfg agentConfig) {
+				if len(cfg.extraPorts) != 1 || cfg.extraPorts[0].Name != "tmpl-port" {
+					t.Errorf("expected template extraPorts inherited, got %v", cfg.extraPorts)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {

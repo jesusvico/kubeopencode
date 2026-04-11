@@ -935,5 +935,54 @@ var _ = Describe("DeploymentBuilder", func() {
 			Expect(service.Spec.Ports[0].Port).To(Equal(int32(8080)))
 			Expect(service.Spec.Selector["kubeopencode.io/agent"]).To(Equal("test-server-agent"))
 		})
+
+		It("Should include extra ports in Service", func() {
+			agent := &kubeopenv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "dind-agent",
+					Namespace: "default",
+				},
+				Spec: kubeopenv1alpha1.AgentSpec{
+					Port: 4096,
+					ExtraPorts: []kubeopenv1alpha1.ExtraPort{
+						{Name: "webapp", Port: 3000},
+						{Name: "vscode", Port: 8080, Protocol: corev1.ProtocolTCP},
+					},
+				},
+			}
+
+			service := BuildServerService(agent)
+			Expect(service).NotTo(BeNil())
+			Expect(service.Spec.Ports).To(HaveLen(3))
+
+			// Main port
+			Expect(service.Spec.Ports[0].Name).To(Equal("http"))
+			Expect(service.Spec.Ports[0].Port).To(Equal(int32(4096)))
+
+			// Extra ports
+			Expect(service.Spec.Ports[1].Name).To(Equal("webapp"))
+			Expect(service.Spec.Ports[1].Port).To(Equal(int32(3000)))
+			Expect(service.Spec.Ports[1].Protocol).To(Equal(corev1.ProtocolTCP))
+
+			Expect(service.Spec.Ports[2].Name).To(Equal("vscode"))
+			Expect(service.Spec.Ports[2].Port).To(Equal(int32(8080)))
+		})
+
+		It("Should build Service with only main port when no extra ports", func() {
+			agent := &kubeopenv1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "simple-agent",
+					Namespace: "default",
+				},
+				Spec: kubeopenv1alpha1.AgentSpec{
+					Port: 4096,
+				},
+			}
+
+			service := BuildServerService(agent)
+			Expect(service.Spec.Ports).To(HaveLen(1))
+			Expect(service.Spec.Ports[0].Name).To(Equal("http"))
+			Expect(service.Spec.Ports[0].Port).To(Equal(int32(4096)))
+		})
 	})
 })

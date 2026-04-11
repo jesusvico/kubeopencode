@@ -345,6 +345,23 @@ type AgentSpec struct {
 	// +kubebuilder:validation:Maximum=65535
 	Port int32 `json:"port,omitempty"`
 
+	// ExtraPorts defines additional ports to expose on the Agent's Service and Deployment.
+	// This is useful for DinD scenarios where containers running inside the agent
+	// need to be accessible from outside (e.g., web application UIs, VS Code server,
+	// database ports for debugging).
+	//
+	// Each extra port is added to both the Deployment's container ports and the
+	// Agent's Service. Users can then access them via kubectl port-forward or Ingress.
+	//
+	// Example:
+	//   extraPorts:
+	//     - name: webapp
+	//       port: 3000
+	//     - name: vscode
+	//       port: 8080
+	// +optional
+	ExtraPorts []ExtraPort `json:"extraPorts,omitempty"`
+
 	// Persistence configures persistent storage for the Agent.
 	// When set, session data (and optionally workspace files) survive pod restarts.
 	// +optional
@@ -456,6 +473,30 @@ type StandbyConfig struct {
 	//
 	// Example: "30m", "1h"
 	IdleTimeout metav1.Duration `json:"idleTimeout"`
+}
+
+// ExtraPort defines an additional port to expose on the Agent's Service and Deployment.
+// This enables access to services running inside the agent container, such as
+// web applications started via Docker-in-Docker, VS Code server, or database ports.
+type ExtraPort struct {
+	// Name is the name of this port within the Service.
+	// Must be unique among all ports (including the main OpenCode server port).
+	// +required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=15
+	Name string `json:"name"`
+
+	// Port is the port number to expose on both the container and the Service.
+	// +required
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	Port int32 `json:"port"`
+
+	// Protocol defaults to TCP.
+	// +optional
+	// +kubebuilder:default=TCP
+	// +kubebuilder:validation:Enum=TCP;UDP
+	Protocol corev1.Protocol `json:"protocol,omitempty"`
 }
 
 // AgentPodSpec defines advanced Pod configuration for agent pods.
