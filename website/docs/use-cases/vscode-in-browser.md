@@ -126,7 +126,7 @@ kubectl port-forward svc/dev-agent 4096:4096 8080:8080 -n <namespace>
 
 ## Combining with Docker-in-Docker
 
-For the full development experience (VS Code + Docker), combine this with the [DinD setup](../features/docker-in-docker.md):
+For the full development experience (VS Code + Docker), combine this with the [DinD setup](docker-in-docker.md):
 
 ```dockerfile
 FROM ghcr.io/kubeopencode/kubeopencode-agent-devbox:latest

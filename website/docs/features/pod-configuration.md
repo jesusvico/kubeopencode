@@ -104,7 +104,7 @@ spec:
 
 ## Extra Ports
 
-Expose additional ports on the Agent's Service and Deployment using `extraPorts`. This is useful for [Docker-in-Docker](docker-in-docker.md) scenarios where containers inside the agent need to be accessible from outside — for example, web application UIs, VS Code server, or database ports.
+Expose additional ports on the Agent's Service and Deployment using `extraPorts`. This is useful for [Docker-in-Docker](../use-cases/docker-in-docker.md) scenarios where containers inside the agent need to be accessible from outside — for example, web application UIs, VS Code server, or database ports.
 
 ```yaml
 apiVersion: kubeopencode.io/v1alpha1

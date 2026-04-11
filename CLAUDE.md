@@ -57,6 +57,8 @@ Key Agent spec fields: `templateRef`, `profile`, `agentImage`, `executorImage`, 
 
 > See `website/docs/features.md` for detailed YAML examples of Agent configuration, proxy, credentials, concurrency, quota, persistence, and Git auto-sync.
 
+**Docker in Docker (DinD)**: The devbox executor image includes Docker CLI. Full DinD (build + run containers) is supported via `podSpec.runtimeClassName` (Sysbox recommended) or `podSpec.securityContext` (privileged/rootless). No code changes needed — existing `AgentPodSpec` fields are sufficient. See `website/docs/use-cases/docker-in-docker.md`.
+
 **Git Auto-Sync**: Git contexts support `sync` field with `enabled`, `interval`, and `policy` (HotReload or Rollout). HotReload uses a `kubeopencode git-sync` sidecar for in-place updates. Rollout triggers Deployment rolling update with Task protection (waits for active Tasks, 1h safety timeout). See ADR 0027.
 
 ### AgentTemplate
