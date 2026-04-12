@@ -1,0 +1,30 @@
+# Copyright Contributors to the KubeOpenCode project
+# VS Code in Browser Agent — test agent for vscode-in-browser use case
+#
+# Uses a custom devbox image with code-server pre-installed.
+# Exposes port 8080 for VS Code web UI via extraPorts.
+#
+apiVersion: kubeopencode.io/v1alpha1
+kind: Agent
+metadata:
+  name: vscode-agent
+  namespace: test
+spec:
+  templateRef:
+    name: team-base
+  profile: "Development agent with VS Code in browser"
+  executorImage: quay.io/kubeopencode/kubeopencode-agent-devbox-vscode:dev
+  workspaceDir: /workspace
+  serviceAccountName: kubeopencode-agent
+  port: 4096
+  extraPorts:
+    - name: vscode
+      port: 8080
+  config: |
+    {
+      "$schema": "https://opencode.ai/config.json",
+      "model": "opencode/big-pickle",
+      "small_model": "opencode/big-pickle",
+      "share": "disabled",
+      "autoupdate": false
+    }

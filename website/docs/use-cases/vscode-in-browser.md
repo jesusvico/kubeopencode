@@ -45,8 +45,9 @@ if ! pgrep -x code-server > /dev/null 2>&1; then
         --bind-addr 0.0.0.0:8080 \
         --auth none \
         --disable-telemetry \
+        --disable-workspace-trust \
         --user-data-dir /tmp/.vscode-server \
-        /workspace &>/tmp/code-server.log &
+        &>/tmp/code-server.log &
     echo "code-server started on :8080" >&2
 fi
 EOF
@@ -105,9 +106,11 @@ Once the Agent is running:
 # Port-forward the VS Code port
 kubectl port-forward svc/dev-agent 8080:8080 -n <namespace>
 
-# Open in browser
-open http://localhost:8080
+# Open in browser (use ?folder= to open the workspace directly)
+open http://localhost:8080/?folder=/workspace
 ```
+
+> **Note**: Always use the `?folder=/workspace` URL parameter. Without it, code-server may attempt to open the workspace in a popup, which browsers block by default.
 
 You can also port-forward both the OpenCode server and VS Code simultaneously:
 

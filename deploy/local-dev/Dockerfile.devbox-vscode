@@ -1,0 +1,31 @@
+FROM quay.io/kubeopencode/kubeopencode-agent-devbox:dev
+
+USER root
+
+# Install code-server
+RUN curl -fsSL https://code-server.dev/install.sh | sh
+
+# Create startup script
+RUN cat > /usr/local/bin/start-code-server.sh << 'EOF'
+#!/bin/bash
+# Start code-server in background if not already running
+if ! pgrep -x code-server > /dev/null 2>&1; then
+    code-server \
+        --bind-addr 0.0.0.0:8080 \
+        --auth none \
+        --disable-telemetry \
+        --disable-workspace-trust \
+        --user-data-dir /tmp/.vscode-server \
+        &>/tmp/code-server.log &
+    echo "code-server started on :8080" >&2
+fi
+EOF
+RUN chmod +x /usr/local/bin/start-code-server.sh
+
+# Auto-start code-server when interactive shells open
+RUN echo '/usr/local/bin/start-code-server.sh' >> /etc/bash.bashrc && \
+    echo '/usr/local/bin/start-code-server.sh' >> /etc/zsh/zshrc
+
+USER 1000:0
+WORKDIR /workspace
+CMD ["/bin/zsh"]
