@@ -108,6 +108,7 @@ This section tracks which releases include CRD changes, so operators know when m
 
 | Version | CRD Changes | Description |
 |---------|-------------|-------------|
+| v0.0.24 | Yes         | Added `share` fields (enabled, expiresAt, allowedIPs, readOnly) to Agent CRD for token-based terminal sharing |
 | v0.0.18 | Yes         | Added `git.sync` (HotReload/Rollout), `skills`, `standby` fields to Agent/AgentTemplate CRDs |
 | v0.0.13 | Yes         | Replaced `ServerStatus.readyReplicas` (int32) with `ready` (bool) in Agent CRD |
 | v0.0.9  | No (RBAC)   | Added `agents/finalizers` permission to controller ClusterRole (required for Server-mode Agents on OpenShift); fixed UI version display |
