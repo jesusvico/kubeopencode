@@ -112,6 +112,7 @@ This section tracks which releases include CRD changes, so operators know when m
 
 | Version | CRD Changes | Description |
 |---------|-------------|-------------|
+| v0.0.25 | Yes         | Added `plugins` field to Agent/AgentTemplate CRDs; changed `config` field type from `*string` to `*runtime.RawExtension` |
 | v0.0.15 | Yes         | Added AgentTemplate CRD. Unified Agent model (always running + idle timeout). Go upgraded from 1.25 to 1.26. UI improvements: favicon, agent create form, polling for agent status, config page. CLI: added task/agenttemplate/suspend/resume commands. |
 | v0.0.14 | Yes         | Removed `serverConfig` from Agent spec; `port`, `persistence`, and `suspend` are now top-level fields. Agent always creates Deployment + Service (no Pod mode). Task now supports `templateRef` as alternative to `agentRef` for ephemeral tasks via AgentTemplate. |
 | v0.0.13 | Yes         | Replaced `ServerStatus.readyReplicas` (int32) with `ready` (bool) in Agent CRD |
