@@ -47,14 +47,14 @@ plugins:
       serviceName: "my-agent"
 ```
 
-This generates the following in `opencode.json`:
+This generates the following in the OpenCode config:
 
-```json
-{
-  "plugin": [
-    ["file:///plugins/node_modules/@nicholasgriffintn/opencode-plugin-otel", {"endpoint": "http://otel-collector:4318", "verbose": true, "serviceName": "my-agent"}]
-  ]
-}
+```yaml
+plugin:
+  - - "file:///plugins/node_modules/@nicholasgriffintn/opencode-plugin-otel"
+    - endpoint: "http://otel-collector:4318"
+      verbose: true
+      serviceName: "my-agent"
 ```
 
 ## Plugin Credentials

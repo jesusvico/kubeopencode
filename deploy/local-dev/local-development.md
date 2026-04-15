@@ -573,12 +573,10 @@ The default `opencode/big-pickle` model is free and requires no API key. To use 
 
 2. Edit `agenttemplate.yaml` to change the model and add credentials:
    ```yaml
-   config: |
-     {
-       "$schema": "https://opencode.ai/config.json",
-       "model": "anthropic/claude-sonnet-4-20250514",
-       "small_model": "anthropic/claude-haiku-4-20250514"
-     }
+   config:
+     $schema: https://opencode.ai/config.json
+     model: anthropic/claude-sonnet-4-20250514
+     small_model: anthropic/claude-haiku-4-20250514
    credentials:
      - name: opencode
        secretRef:

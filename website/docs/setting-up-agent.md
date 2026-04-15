@@ -41,7 +41,7 @@ spec:
     small_model: anthropic/claude-haiku-4-5
 ```
 
-The `config` field is serialized to `/tools/opencode.json` inside the container. The `OPENCODE_CONFIG` environment variable is set automatically — you don't need to do anything else.
+The `config` field is serialized to a config file inside the container. The `OPENCODE_CONFIG` environment variable is set automatically — you don't need to do anything else.
 
 ### Model Format
 

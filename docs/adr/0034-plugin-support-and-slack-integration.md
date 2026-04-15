@@ -24,18 +24,17 @@ The plugin system is a core reason for choosing OpenCode as our Agent Engine. It
 
 ### Current Limitation
 
-Users *can* pass plugins via `spec.config` as raw JSON:
+Users *can* pass plugins via `spec.config`:
 
 ```yaml
 spec:
-  config: |
-    {
-      "plugin": ["@some-org/some-plugin"]
-    }
+  config:
+    plugin:
+      - "@some-org/some-plugin"
 ```
 
 This has significant UX problems:
-- Manual JSON editing is error-prone and hard to validate
+- Manual config editing is error-prone and hard to validate
 - Plugin configuration is mixed with model/provider settings
 - Per-plugin options require nested JSON arrays (`["pkg", { opts }]`)
 - Controller has no visibility into which plugins are loaded
@@ -320,10 +319,8 @@ spec:
         key: app-token
       env: "SLACK_APP_TOKEN"
   
-  config: |
-    {
-      "model": "anthropic/claude-sonnet-4-20250514"
-    }
+  config:
+    model: anthropic/claude-sonnet-4-20250514
   
   contexts:
     - name: project-repo

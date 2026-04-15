@@ -36,19 +36,16 @@ spec:
   plugins:
     - name: "cc-safety-net"
 
-  config: |
-    {
-      "model": "anthropic/claude-sonnet-4-20250514"
-    }
+  config:
+    model: anthropic/claude-sonnet-4-20250514
 ```
 
-The controller installs the plugin via `npm install` in the plugin-init container and generates an `opencode.json` with:
+The controller installs the plugin via `npm install` in the plugin-init container and merges the plugin path into the generated config:
 
-```json
-{
-  "model": "anthropic/claude-sonnet-4-20250514",
-  "plugin": ["file:///plugins/node_modules/cc-safety-net"]
-}
+```yaml
+model: anthropic/claude-sonnet-4-20250514
+plugin:
+  - "file:///plugins/node_modules/cc-safety-net"
 ```
 
 Any task that tries to execute a destructive command will be blocked.
@@ -96,18 +93,15 @@ spec:
     - name: "plugin-gentleman"
       target: tui
 
-  config: |
-    {
-      "model": "anthropic/claude-sonnet-4-20250514"
-    }
+  config:
+    model: anthropic/claude-sonnet-4-20250514
 ```
 
-The controller installs the plugin via npm and generates a separate `tui.json`:
+The controller installs the plugin via npm and generates a separate TUI config:
 
-```json
-{
-  "plugin": ["file:///plugins/node_modules/plugin-gentleman"]
-}
+```yaml
+plugin:
+  - "file:///plugins/node_modules/plugin-gentleman"
 ```
 
 And sets `OPENCODE_TUI_CONFIG=/tools/tui.json` on the Agent container.
@@ -136,18 +130,15 @@ spec:
     - name: "plugin-gentleman"
       target: tui
 
-  config: |
-    {
-      "model": "anthropic/claude-sonnet-4-20250514"
-    }
+  config:
+    model: anthropic/claude-sonnet-4-20250514
 ```
 
 This produces:
 
-- `/tools/opencode.json` — server config with `cc-safety-net` and OTel plugin (`file://` paths)
-- `/tools/tui.json` — TUI config with `plugin-gentleman` (`file://` path)
-- `OPENCODE_CONFIG=/tools/opencode.json`
-- `OPENCODE_TUI_CONFIG=/tools/tui.json`
+- Server config with `cc-safety-net` and OTel plugin (`file://` paths)
+- TUI config with `plugin-gentleman` (`file://` path)
+- `OPENCODE_CONFIG` and `OPENCODE_TUI_CONFIG` environment variables set automatically
 
 ## Plugins in Templates
 
@@ -211,9 +202,9 @@ You can also verify the plugin configuration is correctly injected by inspecting
 # Check the plugin-init container installed packages successfully
 kubectl logs -n <namespace> <pod-name> -c plugin-init
 
-# Verify the opencode.json contains the plugin path
+# Verify the config contains the plugin path
 kubectl exec -n <namespace> <pod-name> -c opencode-server -- cat /tools/opencode.json
-# Should contain: "plugin":["file:///plugins/node_modules/cc-safety-net"]
+# Should contain the plugin path: file:///plugins/node_modules/cc-safety-net
 
 # Verify the package exists in the shared volume
 kubectl exec -n <namespace> <pod-name> -c opencode-server -- ls /plugins/node_modules/cc-safety-net/
@@ -231,7 +222,7 @@ For `plugin-gentleman`, you should see an animated ASCII mascot during busy stat
 
 ```bash
 kubectl exec -n <namespace> <pod-name> -c opencode-server -- cat /tools/tui.json
-# Should contain: "plugin":["file:///plugins/node_modules/plugin-gentleman"]
+# Should contain the plugin path: file:///plugins/node_modules/plugin-gentleman
 ```
 
 ## Version Pinning

@@ -222,19 +222,15 @@ Create a KubeOpenCode-specific MCP server enabling Agents to:
 - Read other Tasks' output
 
 ```yaml
-config: |
-  {
-    "mcp": {
-      "kubeopencode": {
-        "type": "local",
-        "command": ["/tools/kubeopencode-mcp"],
-        "environment": {
-          "KUBERNETES_SERVICE_HOST": "...",
-          "NAMESPACE": "kubeopencode-system"
-        }
-      }
-    }
-  }
+config:
+  mcp:
+    kubeopencode:
+      type: local
+      command:
+        - /tools/kubeopencode-mcp
+      environment:
+        KUBERNETES_SERVICE_HOST: "..."
+        NAMESPACE: kubeopencode-system
 ```
 
 **Value**: Agent-to-Agent orchestration without external workflow engines.

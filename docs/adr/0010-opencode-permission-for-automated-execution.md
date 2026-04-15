@@ -44,15 +44,12 @@ Configurable tools include:
 
 OpenCode supports two ways to configure permissions:
 
-1. **Configuration file** (`opencode.json`):
-```json
-{
-  "permission": {
-    "bash": "allow",
-    "edit": "allow",
-    "external_directory": "allow"
-  }
-}
+1. **Configuration file** (`opencode.json` / inline YAML):
+```yaml
+permission:
+  bash: allow
+  edit: allow
+  external_directory: allow
 ```
 
 2. **Environment variable** (`OPENCODE_PERMISSION`):
@@ -142,18 +139,14 @@ metadata:
 spec:
   workspaceDir: /workspace
   serviceAccountName: kubeopencode-agent
-  config: |
-    {
-      "permission": {
-        "bash": {
-          "git *": "allow",
-          "npm *": "allow",
-          "*": "deny"
-        },
-        "external_directory": "deny",
-        "webfetch": "deny"
-      }
-    }
+  config:
+    permission:
+      bash:
+        "git *": allow
+        "npm *": allow
+        "*": deny
+      external_directory: deny
+      webfetch: deny
 ```
 
 This config will **override** the default `OPENCODE_PERMISSION="allow"` for the specified tools.
@@ -196,17 +189,13 @@ spec:
   serviceAccountName: restricted-sa  # Limited RBAC
   podSpec:
     runtimeClassName: gvisor  # Sandboxed runtime
-  config: |
-    {
-      "permission": {
-        "bash": {
-          "git *": "allow",
-          "npm run *": "allow",
-          "*": "deny"
-        },
-        "external_directory": "deny"
-      }
-    }
+  config:
+    permission:
+      bash:
+        "git *": allow
+        "npm run *": allow
+        "*": deny
+      external_directory: deny
 ```
 
 ## References

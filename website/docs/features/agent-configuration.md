@@ -59,4 +59,4 @@ spec:
     small_model: google/gemini-2.5-flash
 ```
 
-The configuration is serialized to `/tools/opencode.json` and the `OPENCODE_CONFIG` environment variable is set automatically. See [OpenCode configuration schema](https://opencode.ai/config.json) for available options.
+The configuration is serialized to a config file inside the container and the `OPENCODE_CONFIG` environment variable is set automatically. See [OpenCode configuration schema](https://opencode.ai/config.json) for available options.
