@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -68,7 +69,8 @@ type CountActiveTasksFunc func(ctx context.Context, agentName, namespace string)
 // It manages the Deployment and Service for each Agent.
 type AgentReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme   *runtime.Scheme
+	Recorder events.EventRecorder
 
 	// GitLsRemoteFn checks remote Git refs. Defaults to gitLsRemote.
 	GitLsRemoteFn GitLsRemoteFunc
@@ -255,8 +257,10 @@ func (r *AgentReconciler) reconcileDeployment(ctx context.Context, agent *kubeop
 			// Create the Deployment
 			logger.Info("Creating Deployment for Agent", "deployment", desired.Name)
 			if err := r.Create(ctx, desired); err != nil {
+				r.Recorder.Eventf(agent, nil, corev1.EventTypeWarning, "DeploymentCreationFailed", "CreateDeployment", "Failed to create deployment: %v", err)
 				return fmt.Errorf("failed to create Deployment: %w", err)
 			}
+			r.Recorder.Eventf(agent, nil, corev1.EventTypeNormal, "DeploymentCreated", "CreateDeployment", "Created deployment %s", desired.Name)
 			return nil
 		}
 		return fmt.Errorf("failed to get Deployment: %w", err)
@@ -294,6 +298,7 @@ func (r *AgentReconciler) reconcileService(ctx context.Context, agent *kubeopenv
 			if err := r.Create(ctx, desired); err != nil {
 				return fmt.Errorf("failed to create Service: %w", err)
 			}
+			r.Recorder.Eventf(agent, nil, corev1.EventTypeNormal, "ServiceCreated", "CreateService", "Created service %s", desired.Name)
 			return nil
 		}
 		return fmt.Errorf("failed to get Service: %w", err)
@@ -319,6 +324,10 @@ func (r *AgentReconciler) updateAgentStatus(ctx context.Context, agent *kubeopen
 	agent.Status.DeploymentName = deploymentName
 	agent.Status.ServiceName = ServerServiceName(agent.Name)
 	agent.Status.URL = ServerURL(agent.Name, agent.Namespace, GetServerPort(agent))
+
+	// Capture previous state for event emission
+	wasSuspended := agent.Status.Suspended
+	wasReady := agent.Status.Ready
 
 	// status.Suspended mirrors spec.suspend
 	if agent.Spec.Suspend {
@@ -362,6 +371,26 @@ func (r *AgentReconciler) updateAgentStatus(ctx context.Context, agent *kubeopen
 		} else {
 			setAgentCondition(agent, AgentConditionServerReady, metav1.ConditionFalse, "DeploymentNotReady", "Agent deployment is not ready")
 		}
+	}
+
+	// Emit events for state transitions
+	if !wasSuspended && agent.Status.Suspended {
+		// Distinguish user-initiated suspend from standby auto-suspend by
+		// checking the condition reason we just set above.
+		cond := meta.FindStatusCondition(agent.Status.Conditions, AgentConditionSuspended)
+		if cond != nil && cond.Reason == "Standby" {
+			r.Recorder.Eventf(agent, nil, corev1.EventTypeNormal, "StandbySuspended", "Suspend",
+				"Agent auto-suspended after idle timeout (%s)", agent.Spec.Standby.IdleTimeout.Duration)
+		} else {
+			r.Recorder.Eventf(agent, nil, corev1.EventTypeNormal, "UserSuspended", "Suspend", "Agent suspended by user")
+		}
+	} else if wasSuspended && !agent.Status.Suspended {
+		r.Recorder.Eventf(agent, nil, corev1.EventTypeNormal, "Resumed", "Resume", "Agent resumed")
+	}
+	if !wasReady && agent.Status.Ready {
+		r.Recorder.Eventf(agent, nil, corev1.EventTypeNormal, "Ready", "Ready", "Agent deployment is ready and accepting tasks")
+	} else if wasReady && !agent.Status.Ready && !agent.Status.Suspended {
+		r.Recorder.Eventf(agent, nil, corev1.EventTypeWarning, "NotReady", "Ready", "Agent deployment is no longer ready")
 	}
 
 	// Update observed generation

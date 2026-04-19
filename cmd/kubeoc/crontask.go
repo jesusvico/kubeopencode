@@ -163,6 +163,7 @@ func newGetCronTasksCmd() *cobra.Command {
 	var (
 		namespace string
 		wide      bool
+		output    string
 	)
 
 	cmd := &cobra.Command{
@@ -172,11 +173,13 @@ func newGetCronTasksCmd() *cobra.Command {
 		Long: `List CronTasks across all namespaces (or a specific namespace with -n).
 
 Use --wide to show additional columns (timezone, concurrency policy, max retained).
+Use -o json or -o yaml to output in structured format.
 
 Examples:
   kubeoc get crontasks
   kubeoc get ct -n production
-  kubeoc get crontasks --wide`,
+  kubeoc get crontasks --wide
+  kubeoc get crontasks -o yaml`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := getKubeConfig()
 			if err != nil {
@@ -196,6 +199,11 @@ Examples:
 
 			if err := k8sClient.List(cmd.Context(), &cronTasks, listOpts...); err != nil {
 				return fmt.Errorf("failed to list CronTasks: %w", err)
+			}
+
+			// Handle structured output formats
+			if handled, err := outputFormat(output, cronTasks); handled {
+				return err
 			}
 
 			if len(cronTasks.Items) == 0 {
@@ -254,5 +262,6 @@ Examples:
 
 	cmd.Flags().StringVarP(&namespace, "namespace", "n", "", "Filter by namespace (default: all namespaces)")
 	cmd.Flags().BoolVar(&wide, "wide", false, "Show additional columns (timezone, policy, max retained)")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format: json, yaml")
 	return cmd
 }
