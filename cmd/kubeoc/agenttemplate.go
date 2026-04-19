@@ -19,6 +19,7 @@ func newGetAgentTemplatesCmd() *cobra.Command {
 	var (
 		namespace string
 		wide      bool
+		output    string
 	)
 
 	cmd := &cobra.Command{
@@ -28,11 +29,13 @@ func newGetAgentTemplatesCmd() *cobra.Command {
 		Long: `List agent templates across all namespaces (or a specific namespace with -n).
 
 Use --wide to show additional columns (executor image, workspace, service account).
+Use -o json or -o yaml to output in structured format.
 
 Examples:
   kubeoc get agenttemplates
   kubeoc get agenttemplates -n production
-  kubeoc get agenttemplates --wide`,
+  kubeoc get agenttemplates --wide
+  kubeoc get agenttemplates -o json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := getKubeConfig()
 			if err != nil {
@@ -52,6 +55,11 @@ Examples:
 
 			if err := k8sClient.List(cmd.Context(), &templates, listOpts...); err != nil {
 				return fmt.Errorf("failed to list agent templates: %w", err)
+			}
+
+			// Handle structured output formats
+			if handled, err := outputFormat(output, templates); handled {
+				return err
 			}
 
 			if len(templates.Items) == 0 {
@@ -96,6 +104,7 @@ Examples:
 
 	cmd.Flags().StringVarP(&namespace, "namespace", "n", "", "Filter by namespace (default: all namespaces)")
 	cmd.Flags().BoolVar(&wide, "wide", false, "Show additional columns (executor image, workspace, service account)")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format: json, yaml")
 	return cmd
 }
 

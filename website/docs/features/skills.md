@@ -1,10 +1,62 @@
 # Skills
 
-Skills are reusable AI agent capabilities defined as SKILL.md files (Markdown with YAML frontmatter). KubeOpenCode supports referencing external skills from Git repositories, allowing teams to share and reuse skills across Agents.
+Skills are reusable AI agent capabilities defined as SKILL.md files (Markdown with YAML frontmatter).
 
 Skills are semantically different from Contexts:
 - **Contexts** provide knowledge ("what the agent knows")
 - **Skills** provide capabilities ("what the agent can do")
+
+## Two Ways to Use Skills
+
+KubeOpenCode supports two complementary approaches for loading skills:
+
+| Approach | How | Best for |
+|----------|-----|----------|
+| **File-based (workspace)** | Place skills in your project repo's `.opencode/skills/` or `.agents/skills/` directory | Team-owned skills that live alongside your code |
+| **CRD `skills[]` field** | Reference external Git repositories in the Agent spec | Shared/public skills from other repositories |
+
+### File-based skills (workspace directory)
+
+If your project repository already contains skills in the standard OpenCode directory structure, they are **automatically discovered** when OpenCode starts — no additional CRD configuration needed. This works identically to running OpenCode locally.
+
+For example, the [kubeopencode-agent](https://github.com/kubeopencode/kubeopencode-agent) repository has skills defined at `.opencode/skills/`:
+
+```
+kubeopencode-agent/
+└── .opencode/
+    └── skills/
+        ├── github-respond/SKILL.md
+        ├── opencode-update/SKILL.md
+        ├── pr-review/SKILL.md
+        ├── slack-respond/SKILL.md
+        └── tiny-refactor/SKILL.md
+```
+
+Mount the repo to your workspace root via a Git context, and all skills are loaded automatically:
+
+```yaml
+apiVersion: kubeopencode.io/v1alpha1
+kind: Agent
+metadata:
+  name: my-agent
+spec:
+  workspaceDir: /workspace
+  contexts:
+  - name: my-project
+    type: Git
+    git:
+      repository: https://github.com/kubeopencode/kubeopencode-agent.git
+      ref: main
+    mountPath: .    # mounts to /workspace
+```
+
+Since the repo is mounted at the workspace root (`/workspace`), the `.opencode/skills/` directory ends up at `/workspace/.opencode/skills/` — exactly where OpenCode expects it. All standard OpenCode configurations (`.opencode/`, `.agents/`, `AGENTS.md`, etc.) work the same way.
+
+### External skills (CRD `skills[]` field)
+
+For skills maintained in **separate repositories** — such as community skills, organization-wide shared skills, or third-party skill collections — use the `skills[]` field in the Agent spec. The controller clones these repositories and injects them into OpenCode's skill discovery paths.
+
+Both approaches work side by side. You can have project-local skills in your workspace **and** reference external skills via the CRD — they are all available to the agent.
 
 ## Basic Usage
 

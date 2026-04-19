@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '../api/client';
 import TimeAgo from '../components/TimeAgo';
 import ResourceFilter from '../components/ResourceFilter';
+import MultiSelect from '../components/MultiSelect';
 import SortableHeader from '../components/SortableHeader';
 import { TableSkeleton } from '../components/Skeleton';
 import { useFilterState } from '../hooks/useFilterState';
@@ -11,23 +12,38 @@ import { useNamespace } from '../contexts/NamespaceContext';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
+const STATUS_OPTIONS = [
+  { value: 'enabled', label: 'Enabled' },
+  { value: 'suspended', label: 'Suspended' },
+];
+
 function CronTasksPage() {
   const { namespace, isAllNamespaces } = useNamespace();
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [filters, setFilters] = useFilterState();
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [namespace, filters.name, filters.labelSelector]);
+  }, [namespace, filters.name, filters.labelSelector, statusFilter]);
 
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['crontasks', namespace, currentPage, pageSize, sortOrder, filters.name, filters.labelSelector],
+  // Reset filters when namespace changes
+  useEffect(() => {
+    setStatusFilter([]);
+  }, [namespace]);
+
+  const hasStatusFilter = statusFilter.length > 0;
+
+  const { data: rawData, isLoading, error, refetch } = useQuery({
+    queryKey: ['crontasks', namespace, currentPage, pageSize, sortOrder, filters.name, filters.labelSelector, statusFilter],
     queryFn: () => {
+      // When status filter is active, fetch all items for accurate client-side filtering + pagination.
+      // Without status filter, use normal server-side pagination.
       const params = {
-        limit: pageSize,
-        offset: (currentPage - 1) * pageSize,
+        limit: hasStatusFilter ? 500 : pageSize,
+        offset: hasStatusFilter ? 0 : (currentPage - 1) * pageSize,
         sortOrder,
         name: filters.name || undefined,
         labelSelector: filters.labelSelector || undefined,
@@ -38,6 +54,30 @@ function CronTasksPage() {
     },
     refetchInterval: 30000,
   });
+
+  // Client-side status filtering + pagination (when status filter is active)
+  const data = useMemo(() => {
+    if (!rawData) return rawData;
+    if (!hasStatusFilter) return rawData;
+
+    const filtered = rawData.cronTasks.filter((ct) => {
+      const status = ct.suspend ? 'suspended' : 'enabled';
+      return statusFilter.includes(status);
+    });
+    const totalCount = filtered.length;
+    const start = (currentPage - 1) * pageSize;
+    const end = Math.min(start + pageSize, totalCount);
+    return {
+      ...rawData,
+      cronTasks: filtered.slice(start, end),
+      pagination: {
+        ...rawData.pagination,
+        offset: start,
+        totalCount,
+        hasMore: end < totalCount,
+      },
+    };
+  }, [rawData, statusFilter, hasStatusFilter, currentPage, pageSize]);
 
   return (
     <div className="animate-fade-in">
@@ -62,12 +102,23 @@ function CronTasksPage() {
       </div>
 
       {/* Filter bar */}
-      <div className="mb-4">
-        <ResourceFilter
-          filters={filters}
-          onFilterChange={setFilters}
-          placeholder="Filter CronTasks by name..."
-        />
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-end gap-3">
+        <div className="flex-1">
+          <ResourceFilter
+            filters={filters}
+            onFilterChange={setFilters}
+            placeholder="Filter CronTasks by name..."
+          />
+        </div>
+        <div className="w-40">
+          <MultiSelect
+            label="Status"
+            options={STATUS_OPTIONS}
+            selected={statusFilter}
+            onChange={setStatusFilter}
+            allLabel="All statuses"
+          />
+        </div>
       </div>
 
       {isLoading ? (

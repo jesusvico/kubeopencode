@@ -3,12 +3,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	kubeopenv1alpha1 "github.com/kubeopencode/kubeopencode/api/v1alpha1"
 )
@@ -29,10 +31,36 @@ func newGetCmd() *cobra.Command {
 	return cmd
 }
 
+// outputFormat prints items as JSON or YAML if the output flag is set.
+// Returns true if output was handled (caller should return), false if table output should be used.
+func outputFormat(output string, items interface{}) (bool, error) {
+	switch output {
+	case "json":
+		data, err := json.MarshalIndent(items, "", "  ")
+		if err != nil {
+			return true, fmt.Errorf("failed to marshal JSON: %w", err)
+		}
+		fmt.Println(string(data))
+		return true, nil
+	case "yaml":
+		data, err := yaml.Marshal(items)
+		if err != nil {
+			return true, fmt.Errorf("failed to marshal YAML: %w", err)
+		}
+		fmt.Print(string(data))
+		return true, nil
+	case "":
+		return false, nil
+	default:
+		return true, fmt.Errorf("unknown output format %q (supported: json, yaml)", output)
+	}
+}
+
 func newGetAgentsCmd() *cobra.Command {
 	var (
 		namespace string
 		wide      bool
+		output    string
 	)
 
 	cmd := &cobra.Command{
@@ -40,12 +68,15 @@ func newGetAgentsCmd() *cobra.Command {
 		Short: "List available agents",
 		Long: `List agents across all namespaces (or a specific namespace with -n).
 
-Use -o wide to show additional columns (profile, template).
+Use --wide to show additional columns (profile, template).
+Use -o json or -o yaml to output in structured format.
 
 Examples:
   kubeoc get agents
   kubeoc get agents -n production
-  kubeoc get agents -o wide`,
+  kubeoc get agents --wide
+  kubeoc get agents -o json
+  kubeoc get agents -o yaml`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := getKubeConfig()
 			if err != nil {
@@ -65,6 +96,11 @@ Examples:
 
 			if err := k8sClient.List(cmd.Context(), &agents, listOpts...); err != nil {
 				return fmt.Errorf("failed to list agents: %w", err)
+			}
+
+			// Handle structured output formats
+			if handled, err := outputFormat(output, agents); handled {
+				return err
 			}
 
 			if len(agents.Items) == 0 {
@@ -120,6 +156,7 @@ Examples:
 
 	cmd.Flags().StringVarP(&namespace, "namespace", "n", "", "Filter by namespace (default: all namespaces)")
 	cmd.Flags().BoolVar(&wide, "wide", false, "Show additional columns (profile, template)")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format: json, yaml")
 
 	return cmd
 }

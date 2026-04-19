@@ -171,6 +171,7 @@ func newGetTasksCmd() *cobra.Command {
 	var (
 		namespace string
 		wide      bool
+		output    string
 	)
 
 	cmd := &cobra.Command{
@@ -179,11 +180,13 @@ func newGetTasksCmd() *cobra.Command {
 		Long: `List tasks across all namespaces (or a specific namespace with -n).
 
 Use --wide to show additional columns (pod name).
+Use -o json or -o yaml to output in structured format.
 
 Examples:
   kubeoc get tasks
   kubeoc get tasks -n production
-  kubeoc get tasks --wide`,
+  kubeoc get tasks --wide
+  kubeoc get tasks -o json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := getKubeConfig()
 			if err != nil {
@@ -203,6 +206,11 @@ Examples:
 
 			if err := k8sClient.List(cmd.Context(), &tasks, listOpts...); err != nil {
 				return fmt.Errorf("failed to list tasks: %w", err)
+			}
+
+			// Handle structured output formats
+			if handled, err := outputFormat(output, tasks); handled {
+				return err
 			}
 
 			if len(tasks.Items) == 0 {
@@ -254,6 +262,7 @@ Examples:
 
 	cmd.Flags().StringVarP(&namespace, "namespace", "n", "", "Filter by namespace (default: all namespaces)")
 	cmd.Flags().BoolVar(&wide, "wide", false, "Show additional columns (pod)")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format: json, yaml")
 	return cmd
 }
 
