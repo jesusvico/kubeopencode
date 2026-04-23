@@ -108,6 +108,7 @@ This section tracks which releases include CRD changes, so operators know when m
 
 | Version | CRD Changes | Description |
 |---------|-------------|-------------|
+| v0.0.28 | Yes         | Added `status.session` fields (sessionID, url) to Task CRD for OpenCode session integration |
 | v0.0.27 | Yes         | Added `extraVolumes` and `extraVolumeMounts` fields to `AgentPodSpec` in Agent/AgentTemplate CRDs |
 | v0.0.26 | Yes         | Removed `readOnly` field from `ShareConfig` in Agent CRD |
 | v0.0.25 | Yes         | Added `plugins` field to Agent/AgentTemplate CRDs; changed `config` field type from `*string` to `*runtime.RawExtension` |
