@@ -96,6 +96,17 @@ type TaskReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder events.EventRecorder
+	ocClient *OpenCodeClient
+}
+
+// NewTaskReconciler creates a new TaskReconciler with all dependencies.
+func NewTaskReconciler(c client.Client, scheme *runtime.Scheme, recorder events.EventRecorder) *TaskReconciler {
+	return &TaskReconciler{
+		Client:   c,
+		Scheme:   scheme,
+		Recorder: recorder,
+		ocClient: NewOpenCodeClient(),
+	}
 }
 
 // +kubebuilder:rbac:groups=kubeopencode.io,resources=tasks,verbs=get;list;watch;create;update;patch;delete
@@ -365,6 +376,14 @@ func (r *TaskReconciler) initializeTask(ctx context.Context, task *kubeopenv1alp
 		now := metav1.Now()
 		task.Status.StartTime = &now
 
+		// Store session title for agentRef Tasks (used to look up session later).
+		// The same title is passed to `opencode run --title` in the Pod command.
+		if serverURL != "" {
+			task.Status.Session = &kubeopenv1alpha1.SessionInfo{
+				Title: sessionTitle(task),
+			}
+		}
+
 		if err := r.Status().Update(ctx, task); err != nil {
 			if errors.IsConflict(err) {
 				log.V(1).Info("conflict pre-occupying capacity slot, requeuing")
@@ -584,6 +603,8 @@ func (r *TaskReconciler) updateTaskStatusFromPod(ctx context.Context, task *kube
 		log.Info("task completed", "pod", task.Status.PodName)
 		r.Recorder.Eventf(task, nil, corev1.EventTypeNormal, "Completed", "Completed", "Task completed successfully")
 		r.recordTaskDuration(task)
+		// Resolve session info from Agent's OpenCode server (best-effort)
+		r.resolveSessionInfo(ctx, task)
 		return r.Status().Update(ctx, task)
 	case corev1.PodFailed:
 		task.Status.ObservedGeneration = task.Generation
@@ -593,10 +614,92 @@ func (r *TaskReconciler) updateTaskStatusFromPod(ctx context.Context, task *kube
 		log.Info("task failed", "pod", task.Status.PodName)
 		r.Recorder.Eventf(task, nil, corev1.EventTypeWarning, "Failed", "Failed", "Task failed")
 		r.recordTaskDuration(task)
+		// Resolve session info from Agent's OpenCode server (best-effort)
+		r.resolveSessionInfo(ctx, task)
 		return r.Status().Update(ctx, task)
 	}
 
 	return nil
+}
+
+// resolveSessionInfo queries the Agent's OpenCode server to find the session
+// associated with this Task and populates task.Status.Session with session ID,
+// URL, and summary (token usage, cost, file changes).
+// This is best-effort: failures are logged but do not block Task completion.
+func (r *TaskReconciler) resolveSessionInfo(ctx context.Context, task *kubeopenv1alpha1.Task) {
+	log := log.FromContext(ctx)
+
+	// Only resolve for agentRef Tasks that have a session title
+	if task.Status.Session == nil || task.Status.Session.Title == "" {
+		return
+	}
+	if task.Status.AgentRef == nil {
+		return
+	}
+
+	// Resolve the Agent's server URL
+	agentName := task.Status.AgentRef.Name
+	agent := &kubeopenv1alpha1.Agent{}
+	agentKey := types.NamespacedName{Name: agentName, Namespace: task.Namespace}
+	if err := r.Get(ctx, agentKey, agent); err != nil {
+		log.V(1).Info("cannot resolve session: agent not found", "agent", agentName, "error", err)
+		return
+	}
+
+	if agent.Status.URL == "" {
+		log.V(1).Info("cannot resolve session: agent has no URL", "agent", agentName)
+		return
+	}
+
+	serverURL := agent.Status.URL
+	sessionTitle := task.Status.Session.Title
+
+	// Find session by title
+	session, err := r.ocClient.FindSessionByTitle(ctx, serverURL, sessionTitle)
+	if err != nil {
+		log.V(1).Info("cannot resolve session: search failed", "agent", agentName, "title", sessionTitle, "error", err)
+		return
+	}
+	if session == nil {
+		log.V(1).Info("cannot resolve session: no matching session found", "agent", agentName, "title", sessionTitle)
+		return
+	}
+
+	// Populate session ID and URL
+	task.Status.Session.ID = session.ID
+	task.Status.Session.URL = fmt.Sprintf("%s/session/%s", serverURL, session.ID)
+	log.Info("resolved session for task", "sessionID", session.ID, "agent", agentName)
+
+	// Aggregate message stats (best-effort). Uses the already-fetched session
+	// for file change summary, only fetches messages for token/cost aggregation.
+	aggregated, messageCount, err := r.ocClient.AggregateMessageStats(ctx, serverURL, session.ID)
+	if err != nil {
+		log.V(1).Info("cannot aggregate session summary", "sessionID", session.ID, "error", err)
+		// Still keep session ID and URL even if summary fails
+		return
+	}
+
+	summary := &kubeopenv1alpha1.SessionSummary{
+		MessageCount: messageCount,
+	}
+
+	if aggregated != nil {
+		summary.Cost = fmt.Sprintf("%.6f", aggregated.Cost)
+		summary.TokenUsage = &kubeopenv1alpha1.TokenUsage{
+			Input:     aggregated.Tokens.Input,
+			Output:    aggregated.Tokens.Output,
+			Reasoning: aggregated.Tokens.Reasoning,
+			Cache:     aggregated.Tokens.Cache,
+		}
+	}
+
+	if session.Summary != nil {
+		summary.FilesChanged = session.Summary.Files
+		summary.Additions = session.Summary.Additions
+		summary.Deletions = session.Summary.Deletions
+	}
+
+	task.Status.Session.Summary = summary
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -1131,6 +1234,9 @@ func (r *TaskReconciler) handleStop(ctx context.Context, task *kubeopenv1alpha1.
 		Reason:  kubeopenv1alpha1.ReasonUserStopped,
 		Message: "Task stopped by user via kubeopencode.io/stop annotation",
 	})
+
+	// Resolve session info from Agent's OpenCode server (best-effort)
+	r.resolveSessionInfo(ctx, task)
 
 	r.Recorder.Eventf(task, nil, corev1.EventTypeNormal, "Stopped", "Stopped", "Task stopped by user")
 

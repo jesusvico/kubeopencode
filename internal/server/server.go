@@ -188,6 +188,7 @@ func (s *Server) setupRoutes() *chi.Mux {
 		r.Get("/tasks", taskHandler.ListAll)
 
 		// Task endpoints (namespace-scoped)
+		taskSessionHandler := handlers.NewTaskSessionHandler(s.k8sClient)
 		r.Route("/namespaces/{namespace}/tasks", func(r chi.Router) {
 			r.Get("/", taskHandler.List)
 			r.Post("/", taskHandler.Create)
@@ -195,6 +196,10 @@ func (s *Server) setupRoutes() *chi.Mux {
 			r.Delete("/{name}", taskHandler.Delete)
 			r.Post("/{name}/stop", taskHandler.Stop)
 			r.Get("/{name}/logs", taskHandler.GetLogs)
+
+			// Session proxy — forwards to Agent's OpenCode server
+			r.Get("/{name}/session", taskSessionHandler.GetSession)
+			r.Get("/{name}/session/messages", taskSessionHandler.GetSessionMessages)
 		})
 
 		// CronTask endpoints

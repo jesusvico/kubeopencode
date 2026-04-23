@@ -3,8 +3,6 @@
 package controller
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -1404,17 +1402,12 @@ func configHasPermission(config *runtime.RawExtension) bool {
 	return ok
 }
 
-// sessionTitle generates a session title for the OpenCode session.
-// Format: "{task-name}-{8-char-random-hex}"
+// sessionTitle generates a deterministic session title for the OpenCode session.
+// Format: "kubeopencode/<namespace>/<task-name>"
+// This deterministic format enables the Task controller to look up the session
+// by title via the OpenCode API (GET /session?search=<title>).
 func sessionTitle(task *kubeopenv1alpha1.Task) string {
-	return fmt.Sprintf("%s-%s", task.Name, randomHex(4))
-}
-
-// randomHex returns a random hex string of n bytes (2n characters).
-func randomHex(n int) string {
-	b := make([]byte, n)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
+	return fmt.Sprintf("kubeopencode/%s/%s", task.Namespace, task.Name)
 }
 
 // shellEscape wraps a string in single quotes for safe use in shell commands.

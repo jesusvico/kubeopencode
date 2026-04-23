@@ -96,12 +96,39 @@ type TaskResponse struct {
 	AgentRef       *AgentReference         `json:"agentRef,omitempty"`
 	TemplateRef    *AgentTemplateReference `json:"templateRef,omitempty"`
 	PodName        string                  `json:"podName,omitempty"`
+	Session        *SessionInfoResponse    `json:"session,omitempty"`
 	StartTime      *time.Time              `json:"startTime,omitempty"`
 	CompletionTime *time.Time              `json:"completionTime,omitempty"`
 	Duration       string                  `json:"duration,omitempty"`
 	CreatedAt      time.Time               `json:"createdAt"`
 	Conditions     []Condition             `json:"conditions,omitempty"`
 	Labels         map[string]string       `json:"labels,omitempty"`
+}
+
+// SessionInfoResponse represents session information in API responses
+type SessionInfoResponse struct {
+	ID      string                  `json:"id,omitempty"`
+	Title   string                  `json:"title,omitempty"`
+	URL     string                  `json:"url,omitempty"`
+	Summary *SessionSummaryResponse `json:"summary,omitempty"`
+}
+
+// SessionSummaryResponse represents session summary statistics
+type SessionSummaryResponse struct {
+	MessageCount int32               `json:"messageCount,omitempty"`
+	TokenUsage   *TokenUsageResponse `json:"tokenUsage,omitempty"`
+	Cost         string              `json:"cost,omitempty"`
+	FilesChanged int32               `json:"filesChanged,omitempty"`
+	Additions    int32               `json:"additions,omitempty"`
+	Deletions    int32               `json:"deletions,omitempty"`
+}
+
+// TokenUsageResponse represents token usage in API responses
+type TokenUsageResponse struct {
+	Input     int64 `json:"input,omitempty"`
+	Output    int64 `json:"output,omitempty"`
+	Reasoning int64 `json:"reasoning,omitempty"`
+	Cache     int64 `json:"cache,omitempty"`
 }
 
 // Pagination represents pagination metadata

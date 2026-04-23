@@ -442,6 +442,33 @@ func taskToResponse(task *kubeopenv1alpha1.Task) types.TaskResponse {
 		}
 	}
 
+	// Session info
+	if task.Status.Session != nil {
+		resp.Session = &types.SessionInfoResponse{
+			ID:    task.Status.Session.ID,
+			Title: task.Status.Session.Title,
+			URL:   task.Status.Session.URL,
+		}
+		if task.Status.Session.Summary != nil {
+			s := task.Status.Session.Summary
+			resp.Session.Summary = &types.SessionSummaryResponse{
+				MessageCount: s.MessageCount,
+				Cost:         s.Cost,
+				FilesChanged: s.FilesChanged,
+				Additions:    s.Additions,
+				Deletions:    s.Deletions,
+			}
+			if s.TokenUsage != nil {
+				resp.Session.Summary.TokenUsage = &types.TokenUsageResponse{
+					Input:     s.TokenUsage.Input,
+					Output:    s.TokenUsage.Output,
+					Reasoning: s.TokenUsage.Reasoning,
+					Cache:     s.TokenUsage.Cache,
+				}
+			}
+		}
+	}
+
 	if task.Status.StartTime != nil {
 		t := task.Status.StartTime.Time
 		resp.StartTime = &t
