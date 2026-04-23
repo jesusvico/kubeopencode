@@ -123,11 +123,11 @@ func runController(cmd *cobra.Command, args []string) error {
 		os.Exit(1)
 	}
 
-	if err = (&controller.TaskReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorder("task-controller"),
-	}).SetupWithManager(mgr); err != nil {
+	if err = controller.NewTaskReconciler(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		mgr.GetEventRecorder("task-controller"),
+	).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Task")
 		os.Exit(1)
 	}

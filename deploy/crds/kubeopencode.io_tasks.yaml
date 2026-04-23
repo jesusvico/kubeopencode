@@ -443,6 +443,68 @@ spec:
               podName:
                 description: Kubernetes Pod name
                 type: string
+              session:
+                description: |-
+                  Session contains information about the OpenCode session created for this Task.
+                  Only populated for agentRef Tasks where the session can be resolved.
+                properties:
+                  id:
+                    description: ID is the OpenCode session ID (e.g., "ses_ff34a1b2...").
+                    type: string
+                  summary:
+                    description: Summary is populated when the Task completes with
+                      session statistics.
+                    properties:
+                      additions:
+                        description: Additions is the total lines added.
+                        format: int32
+                        type: integer
+                      cost:
+                        description: Cost is the total estimated cost in USD (as string
+                          for precision).
+                        type: string
+                      deletions:
+                        description: Deletions is the total lines deleted.
+                        format: int32
+                        type: integer
+                      filesChanged:
+                        description: FilesChanged is the number of files modified
+                          during the session.
+                        format: int32
+                        type: integer
+                      messageCount:
+                        description: MessageCount is the total number of messages
+                          in the session.
+                        format: int32
+                        type: integer
+                      tokenUsage:
+                        description: TokenUsage is the total token consumption.
+                        properties:
+                          cache:
+                            description: Cache tokens (cache hits).
+                            format: int64
+                            type: integer
+                          input:
+                            description: Input tokens consumed.
+                            format: int64
+                            type: integer
+                          output:
+                            description: Output tokens generated.
+                            format: int64
+                            type: integer
+                          reasoning:
+                            description: Reasoning tokens used (for models that support
+                              reasoning).
+                            format: int64
+                            type: integer
+                        type: object
+                    type: object
+                  title:
+                    description: |-
+                      Title is the session title used when creating the session.
+                      Format: "kubeopencode/<namespace>/<task-name>"
+                    type: string
+                type: object
               startTime:
                 description: Start time
                 format: date-time

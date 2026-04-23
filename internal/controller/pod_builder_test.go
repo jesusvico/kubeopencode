@@ -1784,8 +1784,8 @@ func TestBuildPod_AgentRef_WithAttachCommand(t *testing.T) {
 	if !strings.Contains(container.Command[2], "--title") {
 		t.Errorf("Command should contain --title flag")
 	}
-	if !strings.Contains(container.Command[2], "test-task-") {
-		t.Errorf("Command --title should contain task name prefix 'test-task-'")
+	if !strings.Contains(container.Command[2], "kubeopencode/default/test-task") {
+		t.Errorf("Command --title should contain deterministic session title, got: %s", container.Command[2])
 	}
 }
 
@@ -1874,8 +1874,8 @@ func TestBuildPod_TemplateRef_WithoutAttachCommand(t *testing.T) {
 	if !strings.Contains(container.Command[2], "--title") {
 		t.Errorf("Command should contain --title flag")
 	}
-	if !strings.Contains(container.Command[2], "test-task-") {
-		t.Errorf("Command --title should contain task name prefix 'test-task-'")
+	if !strings.Contains(container.Command[2], "kubeopencode/default/test-task") {
+		t.Errorf("Command --title should contain deterministic session title, got: %s", container.Command[2])
 	}
 }
 
@@ -1948,7 +1948,7 @@ func TestBuildPod_SetsOPENCODE_PERMISSIONWhenConfigHasNoPermission(t *testing.T)
 	}
 }
 
-func TestBuildPod_SessionTitleDefaultsToTaskNameWithSuffix(t *testing.T) {
+func TestBuildPod_SessionTitleDeterministic(t *testing.T) {
 	task := &kubeopenv1alpha1.Task{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-task",
@@ -1969,9 +1969,9 @@ func TestBuildPod_SessionTitleDefaultsToTaskNameWithSuffix(t *testing.T) {
 	pod := buildPod(task, "my-task-pod", cfg, nil, nil, nil, nil, defaultSystemConfig(), "")
 	container := pod.Spec.Containers[0]
 
-	// Should contain task name prefix with random suffix
-	if !strings.Contains(container.Command[2], "'my-task-") {
-		t.Errorf("Command --title should start with task name 'my-task-', got: %s", container.Command[2])
+	// Should contain deterministic title format: kubeopencode/<namespace>/<task-name>
+	if !strings.Contains(container.Command[2], "'kubeopencode/default/my-task'") {
+		t.Errorf("Command --title should contain deterministic session title, got: %s", container.Command[2])
 	}
 }
 
@@ -2533,17 +2533,20 @@ func TestShellEscape(t *testing.T) {
 func TestSessionTitle(t *testing.T) {
 	task := &kubeopenv1alpha1.Task{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "my-task",
+			Name:      "my-task",
+			Namespace: "test-ns",
 		},
 	}
 	title := sessionTitle(task)
-	if !strings.HasPrefix(title, "my-task-") {
-		t.Errorf("sessionTitle should start with 'my-task-', got %q", title)
+	expected := "kubeopencode/test-ns/my-task"
+	if title != expected {
+		t.Errorf("sessionTitle = %q, want %q", title, expected)
 	}
-	// 8 hex chars after the dash
-	suffix := strings.TrimPrefix(title, "my-task-")
-	if len(suffix) != 8 {
-		t.Errorf("sessionTitle suffix should be 8 hex chars, got %q (len=%d)", suffix, len(suffix))
+
+	// Verify deterministic (same input = same output)
+	title2 := sessionTitle(task)
+	if title != title2 {
+		t.Errorf("sessionTitle should be deterministic, got %q and %q", title, title2)
 	}
 }
 

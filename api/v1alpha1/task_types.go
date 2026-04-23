@@ -146,6 +146,69 @@ type TaskSpec struct {
 	TemplateRef *AgentTemplateReference `json:"templateRef,omitempty"`
 }
 
+// SessionInfo contains information about the OpenCode session associated with a Task.
+// This enables correlation between Kubernetes Tasks and OpenCode conversation sessions.
+type SessionInfo struct {
+	// ID is the OpenCode session ID (e.g., "ses_ff34a1b2...").
+	// +optional
+	ID string `json:"id,omitempty"`
+
+	// Title is the session title used when creating the session.
+	// Format: "kubeopencode/<namespace>/<task-name>"
+	// +optional
+	Title string `json:"title,omitempty"`
+
+	// Summary is populated when the Task completes with session statistics.
+	// +optional
+	Summary *SessionSummary `json:"summary,omitempty"`
+}
+
+// SessionSummary contains aggregated statistics from an OpenCode session.
+type SessionSummary struct {
+	// MessageCount is the total number of messages in the session.
+	// +optional
+	MessageCount int32 `json:"messageCount,omitempty"`
+
+	// TokenUsage is the total token consumption.
+	// +optional
+	TokenUsage *TokenUsage `json:"tokenUsage,omitempty"`
+
+	// Cost is the total estimated cost in USD (as string for precision).
+	// +optional
+	Cost string `json:"cost,omitempty"`
+
+	// FilesChanged is the number of files modified during the session.
+	// +optional
+	FilesChanged int32 `json:"filesChanged,omitempty"`
+
+	// Additions is the total lines added.
+	// +optional
+	Additions int32 `json:"additions,omitempty"`
+
+	// Deletions is the total lines deleted.
+	// +optional
+	Deletions int32 `json:"deletions,omitempty"`
+}
+
+// TokenUsage contains token consumption details.
+type TokenUsage struct {
+	// Input tokens consumed.
+	// +optional
+	Input int64 `json:"input,omitempty"`
+
+	// Output tokens generated.
+	// +optional
+	Output int64 `json:"output,omitempty"`
+
+	// Reasoning tokens used (for models that support reasoning).
+	// +optional
+	Reasoning int64 `json:"reasoning,omitempty"`
+
+	// Cache tokens (cache hits).
+	// +optional
+	Cache int64 `json:"cache,omitempty"`
+}
+
 // TaskExecutionStatus defines the observed state of Task
 type TaskExecutionStatus struct {
 	// ObservedGeneration is the most recent generation observed by the controller.
@@ -169,6 +232,11 @@ type TaskExecutionStatus struct {
 	// Kubernetes Pod name
 	// +optional
 	PodName string `json:"podName,omitempty"`
+
+	// Session contains information about the OpenCode session created for this Task.
+	// Only populated for agentRef Tasks where the session can be resolved.
+	// +optional
+	Session *SessionInfo `json:"session,omitempty"`
 
 	// Start time
 	// +optional
