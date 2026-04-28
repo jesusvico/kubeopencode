@@ -108,14 +108,10 @@ server:
   ingress:
     enabled: false
     className: ""
+    # The agent proxy uses SSE (Server-Sent Events) for streaming. Depending on your
+    # gateway controller, you may need to add annotations it to disable response buffering
+    # and increase timeouts.
     annotations: {}
-    # kubernetes.io/ingress.class: nginx
-    # kubernetes.io/tls-acme: "true"
-    #
-    # Required for agent proxy (SSE streaming) with nginx ingress:
-    # nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    # nginx.ingress.kubernetes.io/proxy-buffering: "off"
-    # nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
     hosts:
       - host: kubeopencode.local
         paths:
